@@ -68,4 +68,18 @@ java安装的路径`/usr/lib/jvm/java-8-openjdk-amd64/bin`
 * Fcitx输入中文时不显示候选词框的解决办法:`sudo apt remove fcitx-module-kimpanel`
 >在非KDE桌面环境下，如果安装了fcitx-module-kimpanel，可能会导致Fcitx输入中文时不显示候选词框，移除该组件，然后重启Fcixt
 * 
-                                
+
+## 添加快捷方式和搜索
+* 添加快捷键:创建文件`ideaUI.desktop`,内容如下
+   ```
+   [Desktop Entry]
+   Name=IdeaIU
+   Comment=IdeaIU
+   Exec=/usr/local/idea/idea-IC-141.1010.3/bin/idea.sh //要启动的程序
+   Icon=/usr/local/idea/idea-IC-141.1010.3/bin/idea.png //快捷键的图标
+   Terminal=false //是否启动终端
+   Type=Application
+   Categories=Application;Development; //在哪里能搜索到,这个是按`win`搜索时所在的分类
+   ```
+* 将快捷方式放到搜索中:
+   将快捷方式放在`/usr/share/applications/`文件夹下即可
