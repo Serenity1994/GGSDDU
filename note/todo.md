@@ -9,6 +9,12 @@
 9. 安装oracle
 10. 安装weblogic
 
+## 7.安装tomcat
+参考: `http://blog.csdn.net/gyming/article/details/36060843`
+1. 解压apache-tomcat-7.0.82.jar.gz到要安装的路径 `/usr/local/`
+2. `cd /usr/local/apache-tomcat-7.0.82`
+3. 启动tomcat `./bin/startup.sh`
+
 ## 2.安装java8并配置环境变量
 * 安装java8
 1. `sudo add-apt-repository ppa:webupd8team/java`添加ppa仓库

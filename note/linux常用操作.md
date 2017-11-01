@@ -1,3 +1,6 @@
+## 在idea中运行tomcat提示没有权限的解决方法
+* 赋予tomcat所在文件夹读写权限:`sudo chmod -R 777 /usr/local/apache-tomcat-7.0.82`
+
 ## 系统信息
 * `uname -a`查看系统详细信息
 * `df -h`显示硬盘容量
