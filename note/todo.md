@@ -114,9 +114,13 @@ fi
 1. `sudo add-apt-repository ppa:webupd8team/java`添加ppa仓库
 2. `sudo apt-get update`
 3. `sudo apt-get install oracle-java8-installer`安装java8
->  java默认安装路径: /usr/lib/jvm/java-8-openjdk-amd64
-* 配置环境变量
-1. 查看当前是否已经配置好环境变量(mint安装java时默认已经配置好环境变量了) 
+>  java默认安装路径: /usr/lib/jvm/java-8-oracle
+4. 修改默认JDK
+* 可以安装设置默认jdk:`sudo apt-get install oracle-java8-set-default`
+* 设置默认使用的jdk
+`sudo update-alternatives --install /usr/bin/java java /usr/lib/jvm/jdk8/bin/java 300`
+`sudo update-alternatives --install /usr/bin/javac javac /usr/lib/jvm/jdk8/bin/javac 300`
+
 
 ## 1.安装输入法
 * 安装
