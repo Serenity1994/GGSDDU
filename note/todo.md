@@ -8,6 +8,58 @@
 8. 安装mysql
 9. 安装oracle
 10. 安装weblogic
+11. 安装node
+12. angular/cli
+13. 安装maven
+## 13.安装maven
+* 下载maven二进制文件,解压到/usr/local/maven下
+* 设置lmaven环境变量:`sudo vim /etc/profile`添加:
+```
+export MAVEN_HOME=/usr/local/maven
+export PATH=$PATH:$MAVEN_HOME/bin
+```
+* 测试maven是否安装成功:`source /etc/profile` `mvn -v`
+* maven库使用淘宝镜像:
+```
+  <mirror>
+    <id>alimaven</id>
+    <name>aliyun maven</name>
+    <url>http://maven.aliyun.com/nexus/content/groups/public/</url>
+    <mirrorOf>central</mirrorOf>
+  </mirror>
+
+  <mirror>
+    <id>uk</id>
+    <mirrorOf>central</mirrorOf>
+    <name>Human Readable Name for this Mirror.</name>
+    <url>http://uk.maven.org/maven2/</url>
+  </mirror>
+
+  <mirror>
+    <id>CN</id>
+    <name>OSChina Central</name>
+    <url>http://maven.oschina.net/content/groups/public/</url>
+    <mirrorOf>central</mirrorOf>
+  </mirror>
+
+  <mirror>
+    <id>nexus</id>
+    <name>internal nexus repository</name>
+    <!-- <url>http://192.168.1.100:8081/nexus/content/groups/public/</url>-->
+    <url>http://repo.maven.apache.org/maven2</url>
+    <mirrorOf>central</mirrorOf>
+  </mirror>
+```
+## 12.安装angular/cli
+* `cnpm install -g @angular/cli`
+* `ln -s /usr/local/nodejs/bin/ng /usr/local/bin/ng`
+
+## 11.安装node
+* 下载最新node.bar.gz,解压到/usr/local/nodejs
+* 建立软连接:`ln -s /usr/local/nodejs/bin/node /usr/local/bin/node`
+`ln -s /usr/local/nodejs/bin/npm /usr/local/bin/npm`
+* 使用淘宝镜像:`sudo npm install -g cnpm --registry=https://registry.npm.taobao.org`
+`ln -s /usr/local/nodejs/bin/cnpm /usr/local/bin/cnpm`
 
 ## 安装oracle
 参考`http://www.cnblogs.com/gaojun/archive/2012/11/22/2783257.html`
@@ -99,7 +151,7 @@ fi
 14. 查看mysql状态:`service mysql status`
 15. 关闭mysql:`service mysql stop`
 16. 添加mysql环境变量,这样就可以在任何地方使用mysql命令了:编辑 /etc/profile 
- 在末尾添加`export PATH=$PAHT:/usr/local/mysql/bin`
+ 在末尾添加`export PATH=$PATH:/usr/local/mysql/bin`
  重启资源: `source /etc/profile`
 17. root帐号初始密码为空,修改root帐号密码:`sudo ./bin/mysqladmin -u root password 'root'`
 
@@ -108,6 +160,11 @@ fi
 1. 解压apache-tomcat-7.0.82.jar.gz到要安装的路径 `/usr/local/`
 2. `cd /usr/local/apache-tomcat-7.0.82`
 3. 启动tomcat `./bin/startup.sh`
+4. 建立软链接,使用`tomcatstart`启动和`tomcatstop`关闭tomcat:`sudo ln -s /usr/local/tomcat/bin/startup.sh /usr/local/bin/tomcatstart`
+`sudo ln -s /usr/local/tomcat/bin/shutdown.sh /usr/local/bin/tomcatstop`
+
+## 5.webstorm
+* 注册码：`http://idea.iteblog.com/key.php`
 
 ## 2.安装java8并配置环境变量
 * 安装java8
@@ -124,12 +181,11 @@ fi
 
 ## 1.安装输入法
 * 安装
-1. `sudo apt-get install fcitx fcitx-config-gtk fcitx-sunpinyin fcitx-googlepinyin fcitx-module-cloudpinyin`
+1. `sudo apt-get install fcitx fcitx-config-gtk fcitx-googlepinyin fcitx-module-cloudpinyin`
 2. `sudo apt-get install fcitx-table-all`
 3. 设置fcitx为默认输入法,重启.
 * 遇到的问题及解决方法
 1. 谷歌输入法中文时不显示候选词.
 >原因:在非KDE桌面环境下，如果安装了fcitx-module-kimpanel，可能会导致Fcitx输入中文时不显示候选词框，移除该组件，然后重启Fcixt  <br>
 解决:`sudo apt remove fcitx-module-kimpanel`
-
 

@@ -1,3 +1,9 @@
+## 软链接
+软链接的作用:可以使用自定义的命令来执行比较复杂的命令
+如下,如果不使用软链接,想要使用`ng`命令,需要执行:`sudo /usr/local/nodejs/bin/ng`,
+建立软链接之后,可以直接使用`sudo ng`
+* 创建ng快捷键`sudo ln -s /usr/local/nodejs/bin/ng /usr/local/bin/ng`
+
 ## 在idea中运行tomcat提示没有权限的解决方法
 * 赋予tomcat所在文件夹读写权限:`sudo chmod -R 777 /usr/local/apache-tomcat-7.0.82`
 

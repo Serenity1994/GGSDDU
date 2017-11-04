@@ -11,5 +11,5 @@
 * select next tab `alt`+`T`
 * select previous tab `shift`+`alt`+`T`
 * vim `ctrl`+`alt`+`v`
-* close active tab `ctrl`+`Q`
-* close other tab `ctrl`+`shift`+`Q`
+* close active tab `alt`+`Q`
+* close other tab `alt`+`shift`+`Q`
