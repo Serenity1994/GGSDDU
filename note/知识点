@@ -1,0 +1,15 @@
+1. 使用spring io管理jar包版本.
+在pom文件中添加
+<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>io.spring.platform</groupId>
+				<artifactId>platform-bom</artifactId>
+				<version>Brussels-SR7</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+		</dependencies>
+</dependencyManagement>
+2. 查看effective-pom.xml
+右键pom->maven->show effective pom
