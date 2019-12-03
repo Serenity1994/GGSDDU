@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/GGSDDU.iml" filepath="$PROJECT_DIR$/.idea/GGSDDU.iml" />
+      <module fileurl="file://$PROJECT_DIR$/GGSDDU.iml" filepath="$PROJECT_DIR$/GGSDDU.iml" />
     </modules>
   </component>
 </project>
