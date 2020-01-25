@@ -1,3 +1,5 @@
 /.idea
 .iml
-target
+/.idea/
+/study_netty/target/
+/study_mq/target/
