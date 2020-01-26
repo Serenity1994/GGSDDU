@@ -1,15 +1,15 @@
 package com.test.n1;
+
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.handler.codec.http.HttpServerCodec;
 
-public class TestServerInitializer extends ChannelInitializer<SocketChannel> {
+public class MyHttpServerInitializer extends ChannelInitializer<SocketChannel> {
     @Override
     protected void initChannel(SocketChannel socketChannel) throws Exception {
-
         ChannelPipeline pipeline = socketChannel.pipeline();
-        pipeline.addLast("HttpServerCodec", new HttpServerCodec());
-        pipeline.addLast("TestHttpServerHandler", new TestHttpServerHandler());
+        pipeline.addLast(new HttpServerCodec());
+        pipeline.addLast(new MyHttpServerHandler());
     }
 }

@@ -9,7 +9,7 @@ import io.netty.util.CharsetUtil;
 
 import java.net.URI;
 
-public class TestHttpServerHandler extends SimpleChannelInboundHandler<HttpObject> {
+public class MyHttpServerHandler extends SimpleChannelInboundHandler<HttpObject> {
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
         System.out.println("channelActive");

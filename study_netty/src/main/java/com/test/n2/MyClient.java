@@ -11,11 +11,13 @@ public class MyClient {
         EventLoopGroup eventLoopGroup = new NioEventLoopGroup();
         try {
             Bootstrap bootstrap = new Bootstrap();
-            bootstrap.group(eventLoopGroup).channel(NioSocketChannel.class)
-                     .handler(new MyClientInitializer());
+            bootstrap
+                    .group(eventLoopGroup)
+                    .channel(NioSocketChannel.class)
+                    .handler(new MyClientInitializer());
             ChannelFuture channelFuture = bootstrap.connect("localhost", 8899).sync();
             channelFuture.channel().closeFuture().sync();
-        }finally {
+        } finally {
             eventLoopGroup.shutdownGracefully();
         }
     }
