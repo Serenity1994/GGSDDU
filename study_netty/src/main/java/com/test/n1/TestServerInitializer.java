@@ -1,4 +1,4 @@
-package com.test.first;
+package com.test.n1;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.socket.SocketChannel;

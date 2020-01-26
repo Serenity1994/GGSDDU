@@ -1,4 +1,4 @@
-package com.test.second;
+package com.test.n2;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFuture;
@@ -12,7 +12,8 @@ public class MyServer {
         EventLoopGroup workerGroup = new NioEventLoopGroup();
         try {
             ServerBootstrap serverBootstrap = new ServerBootstrap();
-            serverBootstrap.group(bossGroup, workerGroup).channel(NioServerSocketChannel.class).childHandler(null);
+            serverBootstrap.group(bossGroup, workerGroup).channel(NioServerSocketChannel.class)
+                    .childHandler(new MyServerInitialLizer());
             ChannelFuture channelFuture = serverBootstrap.bind(8899).sync();
             channelFuture.channel().closeFuture().sync();
         } finally {

@@ -1,4 +1,4 @@
-package com.test.second;
+package com.test.n2;
 
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
