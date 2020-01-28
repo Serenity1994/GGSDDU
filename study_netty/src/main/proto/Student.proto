@@ -1,0 +1,19 @@
+syntax = "proto3";
+package com.test.grpc;
+
+option java_package = "com.test.grpc";
+option java_outer_classname = "GrpcTest";
+option java_multiple_files = true;
+
+service StudentService {
+    rpc GetRealnameById (MyRequest) returns (MyResponse) {
+    }
+}
+
+message MyRequest {
+    int32 id = 1;
+}
+
+message MyResponse {
+    string realName = 2;
+}
