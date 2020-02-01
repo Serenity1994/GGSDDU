@@ -6,6 +6,7 @@
 	<modules>
 		<module>study_mq</module>
         <module>study_netty</module>
+        <module>study_jvm</module>
     </modules>
 	<parent>
 		<groupId>org.springframework.boot</groupId>
