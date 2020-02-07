@@ -24,30 +24,35 @@ public class SelectorTest {
             System.out.println("监听端口:" + 5000 + i);
         }
         while (true) {
+            System.out.println("before selector.select()");
             int select = selector.select();
+            System.out.println("after selector.select()");
             System.out.println("selector.select()返回值:" + select);
             Set<SelectionKey> selectionKeys = selector.selectedKeys();
             Iterator<SelectionKey> iterator = selectionKeys.iterator();
             while (iterator.hasNext()) {
                 SelectionKey selectionKey = iterator.next();
+                System.out.println(selectionKey+"---------");
                 if (selectionKey.isAcceptable()) {
                     ServerSocketChannel serverSocketChannel = (ServerSocketChannel) selectionKey.channel();
                     SocketChannel socketChannel = serverSocketChannel.accept();
                     socketChannel.configureBlocking(false);
                     socketChannel.register(selector, SelectionKey.OP_READ);
-                    iterator.remove();
                     System.out.println("客户端连接:" + socketChannel);
                 } else if (selectionKey.isReadable()) {
                     SocketChannel socketChannel = (SocketChannel) selectionKey.channel();
                     ByteBuffer byteBuffer = ByteBuffer.allocate(512);
                     while (socketChannel.read(byteBuffer) > 0) {
+                        System.out.println("读取数据:" + byteBuffer.toString());
                         byteBuffer.flip();
                         socketChannel.write(byteBuffer);
-                        System.out.println("读取数据:" + byteBuffer);
                         byteBuffer.flip();
                     }
-                    iterator.remove();
                 }
+                // kernel
+                // 为啥要移除:因为selector不会自己删除selectionKeys()方法中的SelectionKey,
+                // 如果不手动移除的话,下次select()时selectionKeys中就会有上次轮询的结果.
+                iterator.remove();
             }
         }
     }
