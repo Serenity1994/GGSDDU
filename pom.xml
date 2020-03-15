@@ -7,6 +7,11 @@
 		<module>study_mq</module>
         <module>study_netty</module>
         <module>study_jvm</module>
+		<module>study-spring</module>
+        <module>study_proxy</module>
+        <module>study_designpattern</module>
+        <module>study_dubbo</module>
+        <module>study_arthas</module>
     </modules>
 	<parent>
 		<groupId>org.springframework.boot</groupId>

@@ -1,0 +1,1433 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" width="1200" height="1222" onload="init(evt)" viewBox="0 0 1200 1222" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<style type="text/css">
+	text { font-family:Verdana; font-size:12px; fill:rgb(0,0,0); }
+	#search { opacity:0.1; cursor:pointer; }
+	#search:hover, #search.show { opacity:1; }
+	#subtitle { text-anchor:middle; font-color:rgb(160,160,160); }
+	#title { text-anchor:middle; font-size:17px}
+	#unzoom { cursor:pointer; }
+	#frames > *:hover { stroke:black; stroke-width:0.5; cursor:pointer; }
+	.hide { display:none; }
+	.parent { opacity:0.5; }
+</style>
+<script type="text/ecmascript">
+<![CDATA[
+	"use strict";
+	var details, searchbtn, unzoombtn, matchedtxt, svg, searching;
+	function init(evt) {
+		details = document.getElementById("details").firstChild;
+		searchbtn = document.getElementById("search");
+		unzoombtn = document.getElementById("unzoom");
+		matchedtxt = document.getElementById("matched");
+		svg = document.getElementsByTagName("svg")[0];
+		searching = 0;
+	}
+
+	window.addEventListener("click", function(e) {
+		var target = find_group(e.target);
+		if (target) {
+			if (target.nodeName == "a") {
+				if (e.ctrlKey === false) return;
+				e.preventDefault();
+			}
+			if (target.classList.contains("parent")) unzoom();
+			zoom(target);
+		}
+		else if (e.target.id == "unzoom") unzoom();
+		else if (e.target.id == "search") search_prompt();
+	}, false)
+
+	// mouse-over for info
+	// show
+	window.addEventListener("mouseover", function(e) {
+		var target = find_group(e.target);
+		if (target) details.nodeValue = "Function: " + g_to_text(target);
+	}, false)
+
+	// clear
+	window.addEventListener("mouseout", function(e) {
+		var target = find_group(e.target);
+		if (target) details.nodeValue = ' ';
+	}, false)
+
+	// ctrl-F for search
+	window.addEventListener("keydown",function (e) {
+		if (e.keyCode === 114 || (e.ctrlKey && e.keyCode === 70)) {
+			e.preventDefault();
+			search_prompt();
+		}
+	}, false)
+
+	// functions
+	function find_child(node, selector) {
+		var children = node.querySelectorAll(selector);
+		if (children.length) return children[0];
+		return;
+	}
+	function find_group(node) {
+		var parent = node.parentElement;
+		if (!parent) return;
+		if (parent.id == "frames") return node;
+		return find_group(parent);
+	}
+	function orig_save(e, attr, val) {
+		if (e.attributes["_orig_" + attr] != undefined) return;
+		if (e.attributes[attr] == undefined) return;
+		if (val == undefined) val = e.attributes[attr].value;
+		e.setAttribute("_orig_" + attr, val);
+	}
+	function orig_load(e, attr) {
+		if (e.attributes["_orig_"+attr] == undefined) return;
+		e.attributes[attr].value = e.attributes["_orig_" + attr].value;
+		e.removeAttribute("_orig_"+attr);
+	}
+	function g_to_text(e) {
+		var text = find_child(e, "title").firstChild.nodeValue;
+		return (text)
+	}
+	function g_to_func(e) {
+		var func = g_to_text(e);
+		// if there's any manipulation we want to do to the function
+		// name before it's searched, do it here before returning.
+		return (func);
+	}
+	function update_text(e) {
+		var r = find_child(e, "rect");
+		var t = find_child(e, "text");
+		var w = parseFloat(r.attributes.width.value) -3;
+		var txt = find_child(e, "title").textContent.replace(/\([^(]*\)$/,"");
+		t.attributes.x.value = parseFloat(r.attributes.x.value) + 3;
+
+		// Smaller than this size won't fit anything
+		if (w < 2 * 12 * 0.59) {
+			t.textContent = "";
+			return;
+		}
+
+		t.textContent = txt;
+		// Fit in full text width
+		if (/^ *$/.test(txt) || t.getSubStringLength(0, txt.length) < w)
+			return;
+
+		for (var x = txt.length - 2; x > 0; x--) {
+			if (t.getSubStringLength(0, x + 2) <= w) {
+				t.textContent = txt.substring(0, x) + "..";
+				return;
+			}
+		}
+		t.textContent = "";
+	}
+
+	// zoom
+	function zoom_reset(e) {
+		if (e.attributes != undefined) {
+			orig_load(e, "x");
+			orig_load(e, "width");
+		}
+		if (e.childNodes == undefined) return;
+		for (var i = 0, c = e.childNodes; i < c.length; i++) {
+			zoom_reset(c[i]);
+		}
+	}
+	function zoom_child(e, x, ratio) {
+		if (e.attributes != undefined) {
+			if (e.attributes.x != undefined) {
+				orig_save(e, "x");
+				e.attributes.x.value = (parseFloat(e.attributes.x.value) - x - 10) * ratio + 10;
+				if (e.tagName == "text")
+					e.attributes.x.value = find_child(e.parentNode, "rect[x]").attributes.x.value + 3;
+			}
+			if (e.attributes.width != undefined) {
+				orig_save(e, "width");
+				e.attributes.width.value = parseFloat(e.attributes.width.value) * ratio;
+			}
+		}
+
+		if (e.childNodes == undefined) return;
+		for (var i = 0, c = e.childNodes; i < c.length; i++) {
+			zoom_child(c[i], x - 10, ratio);
+		}
+	}
+	function zoom_parent(e) {
+		if (e.attributes) {
+			if (e.attributes.x != undefined) {
+				orig_save(e, "x");
+				e.attributes.x.value = 10;
+			}
+			if (e.attributes.width != undefined) {
+				orig_save(e, "width");
+				e.attributes.width.value = parseInt(svg.width.baseVal.value) - (10 * 2);
+			}
+		}
+		if (e.childNodes == undefined) return;
+		for (var i = 0, c = e.childNodes; i < c.length; i++) {
+			zoom_parent(c[i]);
+		}
+	}
+	function zoom(node) {
+		var attr = find_child(node, "rect").attributes;
+		var width = parseFloat(attr.width.value);
+		var xmin = parseFloat(attr.x.value);
+		var xmax = parseFloat(xmin + width);
+		var ymin = parseFloat(attr.y.value);
+		var ratio = (svg.width.baseVal.value - 2 * 10) / width;
+
+		// XXX: Workaround for JavaScript float issues (fix me)
+		var fudge = 0.0001;
+
+		unzoombtn.classList.remove("hide");
+
+		var el = document.getElementById("frames").children;
+		for (var i = 0; i < el.length; i++) {
+			var e = el[i];
+			var a = find_child(e, "rect").attributes;
+			var ex = parseFloat(a.x.value);
+			var ew = parseFloat(a.width.value);
+			var upstack;
+			// Is it an ancestor
+			if (0 == 0) {
+				upstack = parseFloat(a.y.value) > ymin;
+			} else {
+				upstack = parseFloat(a.y.value) < ymin;
+			}
+			if (upstack) {
+				// Direct ancestor
+				if (ex <= xmin && (ex+ew+fudge) >= xmax) {
+					e.classList.add("parent");
+					zoom_parent(e);
+					update_text(e);
+				}
+				// not in current path
+				else
+					e.classList.add("hide");
+			}
+			// Children maybe
+			else {
+				// no common path
+				if (ex < xmin || ex + fudge >= xmax) {
+					e.classList.add("hide");
+				}
+				else {
+					zoom_child(e, xmin, ratio);
+					update_text(e);
+				}
+			}
+		}
+	}
+	function unzoom() {
+		unzoombtn.classList.add("hide");
+		var el = document.getElementById("frames").children;
+		for(var i = 0; i < el.length; i++) {
+			el[i].classList.remove("parent");
+			el[i].classList.remove("hide");
+			zoom_reset(el[i]);
+			update_text(el[i]);
+		}
+	}
+
+	// search
+	function reset_search() {
+		var el = document.querySelectorAll("#frames rect");
+		for (var i = 0; i < el.length; i++) {
+			orig_load(el[i], "fill")
+		}
+	}
+	function search_prompt() {
+		if (!searching) {
+			var term = prompt("Enter a search term (regexp " +
+			    "allowed, eg: ^ext4_)", "");
+			if (term != null) {
+				search(term)
+			}
+		} else {
+			reset_search();
+			searching = 0;
+			searchbtn.classList.remove("show");
+			searchbtn.firstChild.nodeValue = "Search"
+			matchedtxt.classList.add("hide");
+			matchedtxt.firstChild.nodeValue = ""
+		}
+	}
+	function search(term) {
+		var re = new RegExp(term);
+		var el = document.getElementById("frames").children;
+		var matches = new Object();
+		var maxwidth = 0;
+		for (var i = 0; i < el.length; i++) {
+			var e = el[i];
+			var func = g_to_func(e);
+			var rect = find_child(e, "rect");
+			if (func == null || rect == null)
+				continue;
+
+			// Save max width. Only works as we have a root frame
+			var w = parseFloat(rect.attributes.width.value);
+			if (w > maxwidth)
+				maxwidth = w;
+
+			if (func.match(re)) {
+				// highlight
+				var x = parseFloat(rect.attributes.x.value);
+				orig_save(rect, "fill");
+				rect.attributes.fill.value = "rgb(230,0,230)";
+
+				// remember matches
+				if (matches[x] == undefined) {
+					matches[x] = w;
+				} else {
+					if (w > matches[x]) {
+						// overwrite with parent
+						matches[x] = w;
+					}
+				}
+				searching = 1;
+			}
+		}
+		if (!searching)
+			return;
+
+		searchbtn.classList.add("show");
+		searchbtn.firstChild.nodeValue = "Reset Search";
+
+		// calculate percent matched, excluding vertical overlap
+		var count = 0;
+		var lastx = -1;
+		var lastw = 0;
+		var keys = Array();
+		for (k in matches) {
+			if (matches.hasOwnProperty(k))
+				keys.push(k);
+		}
+		// sort the matched frames by their x location
+		// ascending, then width descending
+		keys.sort(function(a, b){
+			return a - b;
+		});
+		// Step through frames saving only the biggest bottom-up frames
+		// thanks to the sort order. This relies on the tree property
+		// where children are always smaller than their parents.
+		var fudge = 0.0001;	// JavaScript floating point
+		for (var k in keys) {
+			var x = parseFloat(keys[k]);
+			var w = matches[keys[k]];
+			if (x >= lastx + lastw - fudge) {
+				count += w;
+				lastx = x;
+				lastw = w;
+			}
+		}
+		// display matched percent
+		matchedtxt.classList.remove("hide");
+		var pct = 100 * count / maxwidth;
+		if (pct != 100) pct = pct.toFixed(1)
+		matchedtxt.firstChild.nodeValue = "Matched: " + pct + "%";
+	}
+]]>
+</script>
+<rect x="0" y="0" width="100%" height="100%" fill="rgb(240,240,220)"/>
+<text id="title" x="600" y="24">Flame Graph</text>
+<text id="details" x="10" y="1205"> </text>
+<text id="unzoom" x="10" y="24" class="hide">Reset Zoom</text>
+<text id="search" x="1090" y="24">Search</text>
+<text id="matched" x="1090" y="1205"> </text>
+<g id="frames">
+<g>
+<title>all (32 samples, 100.00%)</title><rect x="10.0" y="1171.0" width="1180.0" height="15" fill="#e15a5a" rx="2" ry="2"/>
+<text x="13.0" y="1182.0">all</text>
+</g>
+<g>
+<title>InterpreterRuntime::create_exception(JavaThread*, char*, char*) (1 samples, 3.12%)</title><rect x="10.0" y="1155.0" width="36.9" height="15" fill="#cbcb3d" rx="2" ry="2"/>
+<text x="13.0" y="1166.0">Int..</text>
+</g>
+<g>
+<title>SymbolTable::lookup(char const*, int, Thread*) (1 samples, 3.12%)</title><rect x="10.0" y="1139.0" width="36.9" height="15" fill="#dede43" rx="2" ry="2"/>
+<text x="13.0" y="1150.0">Sym..</text>
+</g>
+<g>
+<title>SymbolTable::lookup(int, char const*, int, unsigned int) (1 samples, 3.12%)</title><rect x="10.0" y="1123.0" width="36.9" height="15" fill="#d5d540" rx="2" ry="2"/>
+<text x="13.0" y="1134.0">Sym..</text>
+</g>
+<g>
+<title>Symbol::equals(char const*, int) const (1 samples, 3.12%)</title><rect x="10.0" y="1107.0" width="36.9" height="15" fill="#d7d741" rx="2" ry="2"/>
+<text x="13.0" y="1118.0">Sym..</text>
+</g>
+<g>
+<title>[not_walkable] (1 samples, 3.12%)</title><rect x="46.9" y="1155.0" width="36.9" height="15" fill="#e76262" rx="2" ry="2"/>
+<text x="49.9" y="1166.0">[no..</text>
+</g>
+<g>
+<title>java/lang/Thread.run (14 samples, 43.75%)</title><rect x="83.8" y="1155.0" width="516.2" height="15" fill="#51e251" rx="2" ry="2"/>
+<text x="86.8" y="1166.0">java/lang/Thread.run</text>
+</g>
+<g>
+<title>demo/Arthas$$Lambda$4/1740000325.run (1 samples, 3.12%)</title><rect x="83.8" y="1139.0" width="36.8" height="15" fill="#64f564" rx="2" ry="2"/>
+<text x="86.8" y="1150.0">dem..</text>
+</g>
+<g>
+<title>demo/Arthas.lambda$addHashSetThread$0 (1 samples, 3.12%)</title><rect x="83.8" y="1123.0" width="36.8" height="15" fill="#64f564" rx="2" ry="2"/>
+<text x="86.8" y="1134.0">dem..</text>
+</g>
+<g>
+<title>demo/TestClazzB.testWatch (1 samples, 3.12%)</title><rect x="83.8" y="1107.0" width="36.8" height="15" fill="#6cfd6c" rx="2" ry="2"/>
+<text x="86.8" y="1118.0">dem..</text>
+</g>
+<g>
+<title>java/lang/reflect/Method.invoke (1 samples, 3.12%)</title><rect x="83.8" y="1091.0" width="36.8" height="15" fill="#5bec5b" rx="2" ry="2"/>
+<text x="86.8" y="1102.0">jav..</text>
+</g>
+<g>
+<title>sun/reflect/DelegatingMethodAccessorImpl.invoke (1 samples, 3.12%)</title><rect x="83.8" y="1075.0" width="36.8" height="15" fill="#5ff05f" rx="2" ry="2"/>
+<text x="86.8" y="1086.0">sun..</text>
+</g>
+<g>
+<title>sun/reflect/GeneratedMethodAccessor1.invoke (1 samples, 3.12%)</title><rect x="83.8" y="1059.0" width="36.8" height="15" fill="#68f968" rx="2" ry="2"/>
+<text x="86.8" y="1070.0">sun..</text>
+</g>
+<g>
+<title>io/netty/util/concurrent/FastThreadLocalRunnable.run (10 samples, 31.25%)</title><rect x="120.6" y="1139.0" width="368.8" height="15" fill="#51e251" rx="2" ry="2"/>
+<text x="123.6" y="1150.0">io/netty/util/concurrent/FastThreadLocalRunnable.run</text>
+</g>
+<g>
+<title>io/netty/util/internal/ThreadExecutorMap$2.run (10 samples, 31.25%)</title><rect x="120.6" y="1123.0" width="368.8" height="15" fill="#51e251" rx="2" ry="2"/>
+<text x="123.6" y="1134.0">io/netty/util/internal/ThreadExecutorMap$2.run</text>
+</g>
+<g>
+<title>io/netty/util/concurrent/SingleThreadEventExecutor$5.run (10 samples, 31.25%)</title><rect x="120.6" y="1107.0" width="368.8" height="15" fill="#5ff05f" rx="2" ry="2"/>
+<text x="123.6" y="1118.0">io/netty/util/concurrent/SingleThreadEventExecutor..</text>
+</g>
+<g>
+<title>io/netty/channel/nio/NioEventLoop.run (10 samples, 31.25%)</title><rect x="120.6" y="1091.0" width="368.8" height="15" fill="#64f564" rx="2" ry="2"/>
+<text x="123.6" y="1102.0">io/netty/channel/nio/NioEventLoop.run</text>
+</g>
+<g>
+<title>io/netty/channel/nio/NioEventLoop.processSelectedKeys (4 samples, 12.50%)</title><rect x="120.6" y="1075.0" width="147.5" height="15" fill="#50e150" rx="2" ry="2"/>
+<text x="123.6" y="1086.0">io/netty/channel/ni..</text>
+</g>
+<g>
+<title>io/netty/channel/nio/NioEventLoop.processSelectedKeysOptimized (4 samples, 12.50%)</title><rect x="120.6" y="1059.0" width="147.5" height="15" fill="#5bec5b" rx="2" ry="2"/>
+<text x="123.6" y="1070.0">io/netty/channel/ni..</text>
+</g>
+<g>
+<title>io/netty/channel/nio/NioEventLoop.processSelectedKey (4 samples, 12.50%)</title><rect x="120.6" y="1043.0" width="147.5" height="15" fill="#52e352" rx="2" ry="2"/>
+<text x="123.6" y="1054.0">io/netty/channel/ni..</text>
+</g>
+<g>
+<title>io/netty/channel/nio/AbstractNioByteChannel$NioByteUnsafe.read (4 samples, 12.50%)</title><rect x="120.6" y="1027.0" width="147.5" height="15" fill="#5ced5c" rx="2" ry="2"/>
+<text x="123.6" y="1038.0">io/netty/channel/ni..</text>
+</g>
+<g>
+<title>io/netty/channel/DefaultChannelPipeline.fireChannelRead (3 samples, 9.38%)</title><rect x="120.6" y="1011.0" width="110.7" height="15" fill="#64f564" rx="2" ry="2"/>
+<text x="123.6" y="1022.0">io/netty/chan..</text>
+</g>
+<g>
+<title>io/netty/channel/AbstractChannelHandlerContext.invokeChannelRead (3 samples, 9.38%)</title><rect x="120.6" y="995.0" width="110.7" height="15" fill="#61f261" rx="2" ry="2"/>
+<text x="123.6" y="1006.0">io/netty/chan..</text>
+</g>
+<g>
+<title>io/netty/channel/AbstractChannelHandlerContext.invokeChannelRead (3 samples, 9.38%)</title><rect x="120.6" y="979.0" width="110.7" height="15" fill="#6bfc6b" rx="2" ry="2"/>
+<text x="123.6" y="990.0">io/netty/chan..</text>
+</g>
+<g>
+<title>io/netty/channel/DefaultChannelPipeline$HeadContext.channelRead (3 samples, 9.38%)</title><rect x="120.6" y="963.0" width="110.7" height="15" fill="#69fa69" rx="2" ry="2"/>
+<text x="123.6" y="974.0">io/netty/chan..</text>
+</g>
+<g>
+<title>io/netty/channel/AbstractChannelHandlerContext.fireChannelRead (3 samples, 9.38%)</title><rect x="120.6" y="947.0" width="110.7" height="15" fill="#5ff05f" rx="2" ry="2"/>
+<text x="123.6" y="958.0">io/netty/chan..</text>
+</g>
+<g>
+<title>io/netty/channel/AbstractChannelHandlerContext.invokeChannelRead (3 samples, 9.38%)</title><rect x="120.6" y="931.0" width="110.7" height="15" fill="#52e352" rx="2" ry="2"/>
+<text x="123.6" y="942.0">io/netty/chan..</text>
+</g>
+<g>
+<title>io/netty/channel/AbstractChannelHandlerContext.invokeChannelRead (3 samples, 9.38%)</title><rect x="120.6" y="915.0" width="110.7" height="15" fill="#63f463" rx="2" ry="2"/>
+<text x="123.6" y="926.0">io/netty/chan..</text>
+</g>
+<g>
+<title>io/termd/core/telnet/netty/TelnetChannelHandler.channelRead (3 samples, 9.38%)</title><rect x="120.6" y="899.0" width="110.7" height="15" fill="#5ced5c" rx="2" ry="2"/>
+<text x="123.6" y="910.0">io/termd/core..</text>
+</g>
+<g>
+<title>io/termd/core/telnet/TelnetConnection.receive (3 samples, 9.38%)</title><rect x="120.6" y="883.0" width="110.7" height="15" fill="#65f665" rx="2" ry="2"/>
+<text x="123.6" y="894.0">io/termd/core..</text>
+</g>
+<g>
+<title>io/termd/core/telnet/TelnetConnection.flushDataIfNecessary (3 samples, 9.38%)</title><rect x="120.6" y="867.0" width="110.7" height="15" fill="#6bfc6b" rx="2" ry="2"/>
+<text x="123.6" y="878.0">io/termd/core..</text>
+</g>
+<g>
+<title>io/termd/core/telnet/TelnetConnection.flushData (3 samples, 9.38%)</title><rect x="120.6" y="851.0" width="110.7" height="15" fill="#66f766" rx="2" ry="2"/>
+<text x="123.6" y="862.0">io/termd/core..</text>
+</g>
+<g>
+<title>io/termd/core/telnet/TelnetTtyConnection.onData (3 samples, 9.38%)</title><rect x="120.6" y="835.0" width="110.7" height="15" fill="#57e857" rx="2" ry="2"/>
+<text x="123.6" y="846.0">io/termd/core..</text>
+</g>
+<g>
+<title>io/termd/core/io/BinaryDecoder.write (3 samples, 9.38%)</title><rect x="120.6" y="819.0" width="110.7" height="15" fill="#51e251" rx="2" ry="2"/>
+<text x="123.6" y="830.0">io/termd/core..</text>
+</g>
+<g>
+<title>io/termd/core/io/BinaryDecoder.write (3 samples, 9.38%)</title><rect x="120.6" y="803.0" width="110.7" height="15" fill="#66f766" rx="2" ry="2"/>
+<text x="123.6" y="814.0">io/termd/core..</text>
+</g>
+<g>
+<title>io/termd/core/tty/ReadBuffer.accept (2 samples, 6.25%)</title><rect x="120.6" y="787.0" width="73.8" height="15" fill="#59ea59" rx="2" ry="2"/>
+<text x="123.6" y="798.0">io/termd..</text>
+</g>
+<g>
+<title>io/termd/core/tty/ReadBuffer.accept (2 samples, 6.25%)</title><rect x="120.6" y="771.0" width="73.8" height="15" fill="#62f362" rx="2" ry="2"/>
+<text x="123.6" y="782.0">io/termd..</text>
+</g>
+<g>
+<title>io/termd/core/tty/TtyEventDecoder.accept (2 samples, 6.25%)</title><rect x="120.6" y="755.0" width="73.8" height="15" fill="#66f766" rx="2" ry="2"/>
+<text x="123.6" y="766.0">io/termd..</text>
+</g>
+<g>
+<title>io/termd/core/tty/TtyEventDecoder.accept (2 samples, 6.25%)</title><rect x="120.6" y="739.0" width="73.8" height="15" fill="#6dfe6d" rx="2" ry="2"/>
+<text x="123.6" y="750.0">io/termd..</text>
+</g>
+<g>
+<title>io/termd/core/readline/Readline$Interaction$2.accept (2 samples, 6.25%)</title><rect x="120.6" y="723.0" width="73.8" height="15" fill="#5aeb5a" rx="2" ry="2"/>
+<text x="123.6" y="734.0">io/termd..</text>
+</g>
+<g>
+<title>io/termd/core/readline/Readline$Interaction$2.accept (2 samples, 6.25%)</title><rect x="120.6" y="707.0" width="73.8" height="15" fill="#57e857" rx="2" ry="2"/>
+<text x="123.6" y="718.0">io/termd..</text>
+</g>
+<g>
+<title>io/termd/core/readline/Readline.access$500 (2 samples, 6.25%)</title><rect x="120.6" y="691.0" width="73.8" height="15" fill="#6dfe6d" rx="2" ry="2"/>
+<text x="123.6" y="702.0">io/termd..</text>
+</g>
+<g>
+<title>io/termd/core/readline/Readline.deliver (2 samples, 6.25%)</title><rect x="120.6" y="675.0" width="73.8" height="15" fill="#65f665" rx="2" ry="2"/>
+<text x="123.6" y="686.0">io/termd..</text>
+</g>
+<g>
+<title>io/termd/core/readline/Readline$Interaction.access$200 (2 samples, 6.25%)</title><rect x="120.6" y="659.0" width="73.8" height="15" fill="#66f766" rx="2" ry="2"/>
+<text x="123.6" y="670.0">io/termd..</text>
+</g>
+<g>
+<title>io/termd/core/readline/Readline$Interaction.handle (2 samples, 6.25%)</title><rect x="120.6" y="643.0" width="73.8" height="15" fill="#63f463" rx="2" ry="2"/>
+<text x="123.6" y="654.0">io/termd..</text>
+</g>
+<g>
+<title>io/termd/core/readline/functions/BackwardDeleteChar.apply (1 samples, 3.12%)</title><rect x="120.6" y="627.0" width="36.9" height="15" fill="#52e352" rx="2" ry="2"/>
+<text x="123.6" y="638.0">io/..</text>
+</g>
+<g>
+<title>io/termd/core/readline/Readline$Interaction.refresh (1 samples, 3.12%)</title><rect x="120.6" y="611.0" width="36.9" height="15" fill="#62f362" rx="2" ry="2"/>
+<text x="123.6" y="622.0">io/..</text>
+</g>
+<g>
+<title>io/termd/core/readline/Readline$Interaction.refresh (1 samples, 3.12%)</title><rect x="120.6" y="595.0" width="36.9" height="15" fill="#6afb6a" rx="2" ry="2"/>
+<text x="123.6" y="606.0">io/..</text>
+</g>
+<g>
+<title>io/termd/core/tty/TtyOutputMode.accept (1 samples, 3.12%)</title><rect x="120.6" y="579.0" width="36.9" height="15" fill="#58e958" rx="2" ry="2"/>
+<text x="123.6" y="590.0">io/..</text>
+</g>
+<g>
+<title>io/termd/core/tty/TtyOutputMode.accept (1 samples, 3.12%)</title><rect x="120.6" y="563.0" width="36.9" height="15" fill="#5dee5d" rx="2" ry="2"/>
+<text x="123.6" y="574.0">io/..</text>
+</g>
+<g>
+<title>io/termd/core/tty/TtyOutputMode.sendChunk (1 samples, 3.12%)</title><rect x="120.6" y="547.0" width="36.9" height="15" fill="#66f766" rx="2" ry="2"/>
+<text x="123.6" y="558.0">io/..</text>
+</g>
+<g>
+<title>io/termd/core/io/BinaryEncoder.accept (1 samples, 3.12%)</title><rect x="120.6" y="531.0" width="36.9" height="15" fill="#5eef5e" rx="2" ry="2"/>
+<text x="123.6" y="542.0">io/..</text>
+</g>
+<g>
+<title>io/termd/core/io/BinaryEncoder.accept (1 samples, 3.12%)</title><rect x="120.6" y="515.0" width="36.9" height="15" fill="#57e857" rx="2" ry="2"/>
+<text x="123.6" y="526.0">io/..</text>
+</g>
+<g>
+<title>io/termd/core/telnet/TelnetTtyConnection$2.accept (1 samples, 3.12%)</title><rect x="120.6" y="499.0" width="36.9" height="15" fill="#58e958" rx="2" ry="2"/>
+<text x="123.6" y="510.0">io/..</text>
+</g>
+<g>
+<title>io/termd/core/telnet/TelnetTtyConnection$2.accept (1 samples, 3.12%)</title><rect x="120.6" y="483.0" width="36.9" height="15" fill="#5aeb5a" rx="2" ry="2"/>
+<text x="123.6" y="494.0">io/..</text>
+</g>
+<g>
+<title>io/termd/core/telnet/TelnetConnection.write (1 samples, 3.12%)</title><rect x="120.6" y="467.0" width="36.9" height="15" fill="#54e554" rx="2" ry="2"/>
+<text x="123.6" y="478.0">io/..</text>
+</g>
+<g>
+<title>io/termd/core/telnet/netty/NettyTelnetConnection.send (1 samples, 3.12%)</title><rect x="120.6" y="451.0" width="36.9" height="15" fill="#5eef5e" rx="2" ry="2"/>
+<text x="123.6" y="462.0">io/..</text>
+</g>
+<g>
+<title>io/netty/channel/AbstractChannelHandlerContext.writeAndFlush (1 samples, 3.12%)</title><rect x="120.6" y="435.0" width="36.9" height="15" fill="#6afb6a" rx="2" ry="2"/>
+<text x="123.6" y="446.0">io/..</text>
+</g>
+<g>
+<title>io/netty/channel/AbstractChannelHandlerContext.writeAndFlush (1 samples, 3.12%)</title><rect x="120.6" y="419.0" width="36.9" height="15" fill="#6bfc6b" rx="2" ry="2"/>
+<text x="123.6" y="430.0">io/..</text>
+</g>
+<g>
+<title>io/netty/channel/AbstractChannelHandlerContext.write (1 samples, 3.12%)</title><rect x="120.6" y="403.0" width="36.9" height="15" fill="#51e251" rx="2" ry="2"/>
+<text x="123.6" y="414.0">io/..</text>
+</g>
+<g>
+<title>io/netty/channel/AbstractChannelHandlerContext.invokeWriteAndFlush (1 samples, 3.12%)</title><rect x="120.6" y="387.0" width="36.9" height="15" fill="#6bfc6b" rx="2" ry="2"/>
+<text x="123.6" y="398.0">io/..</text>
+</g>
+<g>
+<title>io/netty/channel/AbstractChannelHandlerContext.invokeWrite0 (1 samples, 3.12%)</title><rect x="120.6" y="371.0" width="36.9" height="15" fill="#5ff05f" rx="2" ry="2"/>
+<text x="123.6" y="382.0">io/..</text>
+</g>
+<g>
+<title>io/netty/channel/DefaultChannelPipeline$HeadContext.write (1 samples, 3.12%)</title><rect x="120.6" y="355.0" width="36.9" height="15" fill="#5ff05f" rx="2" ry="2"/>
+<text x="123.6" y="366.0">io/..</text>
+</g>
+<g>
+<title>io/netty/channel/AbstractChannel$AbstractUnsafe.write (1 samples, 3.12%)</title><rect x="120.6" y="339.0" width="36.9" height="15" fill="#59ea59" rx="2" ry="2"/>
+<text x="123.6" y="350.0">io/..</text>
+</g>
+<g>
+<title>io/netty/channel/nio/AbstractNioByteChannel.filterOutboundMessage (1 samples, 3.12%)</title><rect x="120.6" y="323.0" width="36.9" height="15" fill="#6dfe6d" rx="2" ry="2"/>
+<text x="123.6" y="334.0">io/..</text>
+</g>
+<g>
+<title>io/netty/channel/nio/AbstractNioChannel.newDirectBuffer (1 samples, 3.12%)</title><rect x="120.6" y="307.0" width="36.9" height="15" fill="#5eef5e" rx="2" ry="2"/>
+<text x="123.6" y="318.0">io/..</text>
+</g>
+<g>
+<title>io/netty/buffer/AbstractByteBufAllocator.directBuffer (1 samples, 3.12%)</title><rect x="120.6" y="291.0" width="36.9" height="15" fill="#57e857" rx="2" ry="2"/>
+<text x="123.6" y="302.0">io/..</text>
+</g>
+<g>
+<title>io/netty/buffer/AbstractByteBufAllocator.directBuffer (1 samples, 3.12%)</title><rect x="120.6" y="275.0" width="36.9" height="15" fill="#52e352" rx="2" ry="2"/>
+<text x="123.6" y="286.0">io/..</text>
+</g>
+<g>
+<title>io/netty/buffer/PooledByteBufAllocator.newDirectBuffer (1 samples, 3.12%)</title><rect x="120.6" y="259.0" width="36.9" height="15" fill="#6cfd6c" rx="2" ry="2"/>
+<text x="123.6" y="270.0">io/..</text>
+</g>
+<g>
+<title>io/netty/buffer/AbstractByteBufAllocator.toLeakAwareBuffer (1 samples, 3.12%)</title><rect x="120.6" y="243.0" width="36.9" height="15" fill="#52e352" rx="2" ry="2"/>
+<text x="123.6" y="254.0">io/..</text>
+</g>
+<g>
+<title>InterpreterRuntime::_new(JavaThread*, ConstantPool*, int) (1 samples, 3.12%)</title><rect x="120.6" y="227.0" width="36.9" height="15" fill="#d7d741" rx="2" ry="2"/>
+<text x="123.6" y="238.0">Int..</text>
+</g>
+<g>
+<title>InstanceKlass::initialize(Thread*) (1 samples, 3.12%)</title><rect x="120.6" y="211.0" width="36.9" height="15" fill="#d3d33f" rx="2" ry="2"/>
+<text x="123.6" y="222.0">Ins..</text>
+</g>
+<g>
+<title>InstanceKlass::initialize_impl(instanceKlassHandle, Thread*) (1 samples, 3.12%)</title><rect x="120.6" y="195.0" width="36.9" height="15" fill="#d0d03e" rx="2" ry="2"/>
+<text x="123.6" y="206.0">Ins..</text>
+</g>
+<g>
+<title>InstanceKlass::link_class(Thread*) (1 samples, 3.12%)</title><rect x="120.6" y="179.0" width="36.9" height="15" fill="#e3e345" rx="2" ry="2"/>
+<text x="123.6" y="190.0">Ins..</text>
+</g>
+<g>
+<title>InstanceKlass::link_class_impl(instanceKlassHandle, bool, Thread*) (1 samples, 3.12%)</title><rect x="120.6" y="163.0" width="36.9" height="15" fill="#d7d741" rx="2" ry="2"/>
+<text x="123.6" y="174.0">Ins..</text>
+</g>
+<g>
+<title>JvmtiExport::post_class_prepare(JavaThread*, Klass*) (1 samples, 3.12%)</title><rect x="120.6" y="147.0" width="36.9" height="15" fill="#d5d540" rx="2" ry="2"/>
+<text x="123.6" y="158.0">Jvm..</text>
+</g>
+<g>
+<title>VM::ClassPrepare(_jvmtiEnv*, JNIEnv_*, _jobject*, _jclass*) (1 samples, 3.12%)</title><rect x="120.6" y="131.0" width="36.9" height="15" fill="#e4e445" rx="2" ry="2"/>
+<text x="123.6" y="142.0">VM:..</text>
+</g>
+<g>
+<title>jvmti_GetClassMethods (1 samples, 3.12%)</title><rect x="120.6" y="115.0" width="36.9" height="15" fill="#e25c5c" rx="2" ry="2"/>
+<text x="123.6" y="126.0">jvm..</text>
+</g>
+<g>
+<title>JvmtiEnv::GetClassMethods(oopDesc*, int*, _jmethodID***) (1 samples, 3.12%)</title><rect x="120.6" y="99.0" width="36.9" height="15" fill="#dede43" rx="2" ry="2"/>
+<text x="123.6" y="110.0">Jvm..</text>
+</g>
+<g>
+<title>Method::jmethod_id() (1 samples, 3.12%)</title><rect x="120.6" y="83.0" width="36.9" height="15" fill="#dfdf43" rx="2" ry="2"/>
+<text x="123.6" y="94.0">Met..</text>
+</g>
+<g>
+<title>InstanceKlass::get_jmethod_id(instanceKlassHandle, methodHandle) (1 samples, 3.12%)</title><rect x="120.6" y="67.0" width="36.9" height="15" fill="#e0e044" rx="2" ry="2"/>
+<text x="123.6" y="78.0">Ins..</text>
+</g>
+<g>
+<title>Method::make_jmethod_id(ClassLoaderData*, Method*) (1 samples, 3.12%)</title><rect x="120.6" y="51.0" width="36.9" height="15" fill="#cbcb3d" rx="2" ry="2"/>
+<text x="123.6" y="62.0">Met..</text>
+</g>
+<g>
+<title>JNIMethodBlock::add_method(Method*) (1 samples, 3.12%)</title><rect x="120.6" y="35.0" width="36.9" height="15" fill="#c8c83c" rx="2" ry="2"/>
+<text x="123.6" y="46.0">JNI..</text>
+</g>
+<g>
+<title>io/termd/core/readline/functions/Complete.apply (1 samples, 3.12%)</title><rect x="157.5" y="627.0" width="36.9" height="15" fill="#64f564" rx="2" ry="2"/>
+<text x="160.5" y="638.0">io/..</text>
+</g>
+<g>
+<title>com/taobao/arthas/core/shell/term/impl/CompletionHandler.accept (1 samples, 3.12%)</title><rect x="157.5" y="611.0" width="36.9" height="15" fill="#6afb6a" rx="2" ry="2"/>
+<text x="160.5" y="622.0">com..</text>
+</g>
+<g>
+<title>com/taobao/arthas/core/shell/term/impl/CompletionHandler.accept (1 samples, 3.12%)</title><rect x="157.5" y="595.0" width="36.9" height="15" fill="#62f362" rx="2" ry="2"/>
+<text x="160.5" y="606.0">com..</text>
+</g>
+<g>
+<title>com/taobao/arthas/core/shell/handlers/shell/CommandManagerCompletionHandler.handle (1 samples, 3.12%)</title><rect x="157.5" y="579.0" width="36.9" height="15" fill="#66f766" rx="2" ry="2"/>
+<text x="160.5" y="590.0">com..</text>
+</g>
+<g>
+<title>com/taobao/arthas/core/shell/handlers/shell/CommandManagerCompletionHandler.handle (1 samples, 3.12%)</title><rect x="157.5" y="563.0" width="36.9" height="15" fill="#65f665" rx="2" ry="2"/>
+<text x="160.5" y="574.0">com..</text>
+</g>
+<g>
+<title>com/taobao/arthas/core/shell/system/impl/InternalCommandManager.complete (1 samples, 3.12%)</title><rect x="157.5" y="547.0" width="36.9" height="15" fill="#6dfe6d" rx="2" ry="2"/>
+<text x="160.5" y="558.0">com..</text>
+</g>
+<g>
+<title>com/taobao/arthas/core/shell/system/impl/InternalCommandManager.completeSingleCommand (1 samples, 3.12%)</title><rect x="157.5" y="531.0" width="36.9" height="15" fill="#6afb6a" rx="2" ry="2"/>
+<text x="160.5" y="542.0">com..</text>
+</g>
+<g>
+<title>com/taobao/arthas/core/shell/command/impl/AnnotatedCommandImpl.complete (1 samples, 3.12%)</title><rect x="157.5" y="515.0" width="36.9" height="15" fill="#56e756" rx="2" ry="2"/>
+<text x="160.5" y="526.0">com..</text>
+</g>
+<g>
+<title>com/taobao/arthas/core/command/monitor200/ProfilerCommand.complete (1 samples, 3.12%)</title><rect x="157.5" y="499.0" width="36.9" height="15" fill="#59ea59" rx="2" ry="2"/>
+<text x="160.5" y="510.0">com..</text>
+</g>
+<g>
+<title>com/taobao/arthas/core/shell/cli/CompletionUtils.complete (1 samples, 3.12%)</title><rect x="157.5" y="483.0" width="36.9" height="15" fill="#5aeb5a" rx="2" ry="2"/>
+<text x="160.5" y="494.0">com..</text>
+</g>
+<g>
+<title>com/taobao/arthas/core/shell/system/impl/CommandCompletion.complete (1 samples, 3.12%)</title><rect x="157.5" y="467.0" width="36.9" height="15" fill="#5ff05f" rx="2" ry="2"/>
+<text x="160.5" y="478.0">com..</text>
+</g>
+<g>
+<title>com/taobao/arthas/core/shell/term/impl/CompletionAdaptor.complete (1 samples, 3.12%)</title><rect x="157.5" y="451.0" width="36.9" height="15" fill="#61f261" rx="2" ry="2"/>
+<text x="160.5" y="462.0">com..</text>
+</g>
+<g>
+<title>io/termd/core/readline/Completion.complete (1 samples, 3.12%)</title><rect x="157.5" y="435.0" width="36.9" height="15" fill="#69fa69" rx="2" ry="2"/>
+<text x="160.5" y="446.0">io/..</text>
+</g>
+<g>
+<title>io/termd/core/readline/LineBuffer.insertEscaped (1 samples, 3.12%)</title><rect x="157.5" y="419.0" width="36.9" height="15" fill="#5ced5c" rx="2" ry="2"/>
+<text x="160.5" y="430.0">io/..</text>
+</g>
+<g>
+<title>io/termd/core/util/Helper.consumeTo (1 samples, 3.12%)</title><rect x="157.5" y="403.0" width="36.9" height="15" fill="#69fa69" rx="2" ry="2"/>
+<text x="160.5" y="414.0">io/..</text>
+</g>
+<g>
+<title>io/termd/core/readline/LineStatus$Ext.accept (1 samples, 3.12%)</title><rect x="157.5" y="387.0" width="36.9" height="15" fill="#58e958" rx="2" ry="2"/>
+<text x="160.5" y="398.0">io/..</text>
+</g>
+<g>
+<title>InterpreterRuntime::resolve_get_put(JavaThread*, Bytecodes::Code) (1 samples, 3.12%)</title><rect x="157.5" y="371.0" width="36.9" height="15" fill="#d4d440" rx="2" ry="2"/>
+<text x="160.5" y="382.0">Int..</text>
+</g>
+<g>
+<title>LinkResolver::resolve_field_access(fieldDescriptor&amp;, constantPoolHandle, int, Bytecodes::Code, Thread*) (1 samples, 3.12%)</title><rect x="157.5" y="355.0" width="36.9" height="15" fill="#d8d841" rx="2" ry="2"/>
+<text x="160.5" y="366.0">Lin..</text>
+</g>
+<g>
+<title>LinkResolver::resolve_field(fieldDescriptor&amp;, KlassHandle, Symbol*, Symbol*, KlassHandle, Bytecodes::Code, bool, bool, Thread*) (1 samples, 3.12%)</title><rect x="157.5" y="339.0" width="36.9" height="15" fill="#d6d640" rx="2" ry="2"/>
+<text x="160.5" y="350.0">Lin..</text>
+</g>
+<g>
+<title>InstanceKlass::initialize(Thread*) (1 samples, 3.12%)</title><rect x="157.5" y="323.0" width="36.9" height="15" fill="#d0d03e" rx="2" ry="2"/>
+<text x="160.5" y="334.0">Ins..</text>
+</g>
+<g>
+<title>InstanceKlass::initialize_impl(instanceKlassHandle, Thread*) (1 samples, 3.12%)</title><rect x="157.5" y="307.0" width="36.9" height="15" fill="#cdcd3d" rx="2" ry="2"/>
+<text x="160.5" y="318.0">Ins..</text>
+</g>
+<g>
+<title>InstanceKlass::call_class_initializer_impl(instanceKlassHandle, Thread*) (1 samples, 3.12%)</title><rect x="157.5" y="291.0" width="36.9" height="15" fill="#cccc3d" rx="2" ry="2"/>
+<text x="160.5" y="302.0">Ins..</text>
+</g>
+<g>
+<title>JavaCalls::call_helper(JavaValue*, methodHandle*, JavaCallArguments*, Thread*) (1 samples, 3.12%)</title><rect x="157.5" y="275.0" width="36.9" height="15" fill="#d9d941" rx="2" ry="2"/>
+<text x="160.5" y="286.0">Jav..</text>
+</g>
+<g>
+<title>CompilationPolicy::must_be_compiled(methodHandle, int) (1 samples, 3.12%)</title><rect x="157.5" y="259.0" width="36.9" height="15" fill="#e0e044" rx="2" ry="2"/>
+<text x="160.5" y="270.0">Com..</text>
+</g>
+<g>
+<title>CompilationPolicy::can_be_compiled(methodHandle, int) (1 samples, 3.12%)</title><rect x="157.5" y="243.0" width="36.9" height="15" fill="#c8c83c" rx="2" ry="2"/>
+<text x="160.5" y="254.0">Com..</text>
+</g>
+<g>
+<title>Method::is_not_compilable(int) const (1 samples, 3.12%)</title><rect x="157.5" y="227.0" width="36.9" height="15" fill="#d8d841" rx="2" ry="2"/>
+<text x="160.5" y="238.0">Met..</text>
+</g>
+<g>
+<title>java/nio/charset/CharsetDecoder.decode (1 samples, 3.12%)</title><rect x="194.4" y="787.0" width="36.9" height="15" fill="#5eef5e" rx="2" ry="2"/>
+<text x="197.4" y="798.0">jav..</text>
+</g>
+<g>
+<title>io/termd/core/io/TelnetCharset$1.decodeLoop (1 samples, 3.12%)</title><rect x="194.4" y="771.0" width="36.9" height="15" fill="#6cfd6c" rx="2" ry="2"/>
+<text x="197.4" y="782.0">io/..</text>
+</g>
+<g>
+<title>io/netty/channel/DefaultMaxMessagesRecvByteBufAllocator$MaxMessageHandle.allocate (1 samples, 3.12%)</title><rect x="231.2" y="1011.0" width="36.8" height="15" fill="#66f766" rx="2" ry="2"/>
+<text x="234.2" y="1022.0">io/..</text>
+</g>
+<g>
+<title>io/netty/buffer/AbstractByteBufAllocator.ioBuffer (1 samples, 3.12%)</title><rect x="231.2" y="995.0" width="36.8" height="15" fill="#60f160" rx="2" ry="2"/>
+<text x="234.2" y="1006.0">io/..</text>
+</g>
+<g>
+<title>io/netty/buffer/AbstractByteBufAllocator.directBuffer (1 samples, 3.12%)</title><rect x="231.2" y="979.0" width="36.8" height="15" fill="#6afb6a" rx="2" ry="2"/>
+<text x="234.2" y="990.0">io/..</text>
+</g>
+<g>
+<title>io/netty/buffer/AbstractByteBufAllocator.directBuffer (1 samples, 3.12%)</title><rect x="231.2" y="963.0" width="36.8" height="15" fill="#62f362" rx="2" ry="2"/>
+<text x="234.2" y="974.0">io/..</text>
+</g>
+<g>
+<title>io/netty/buffer/PooledByteBufAllocator.newDirectBuffer (1 samples, 3.12%)</title><rect x="231.2" y="947.0" width="36.8" height="15" fill="#69fa69" rx="2" ry="2"/>
+<text x="234.2" y="958.0">io/..</text>
+</g>
+<g>
+<title>io/netty/buffer/PoolArena.allocate (1 samples, 3.12%)</title><rect x="231.2" y="931.0" width="36.8" height="15" fill="#54e554" rx="2" ry="2"/>
+<text x="234.2" y="942.0">io/..</text>
+</g>
+<g>
+<title>io/netty/buffer/PoolArena.allocate (1 samples, 3.12%)</title><rect x="231.2" y="915.0" width="36.8" height="15" fill="#56e756" rx="2" ry="2"/>
+<text x="234.2" y="926.0">io/..</text>
+</g>
+<g>
+<title>io/netty/buffer/PoolThreadCache.allocateTiny (1 samples, 3.12%)</title><rect x="231.2" y="899.0" width="36.8" height="15" fill="#65f665" rx="2" ry="2"/>
+<text x="234.2" y="910.0">io/..</text>
+</g>
+<g>
+<title>io/netty/buffer/PoolThreadCache.allocate (1 samples, 3.12%)</title><rect x="231.2" y="883.0" width="36.8" height="15" fill="#53e453" rx="2" ry="2"/>
+<text x="234.2" y="894.0">io/..</text>
+</g>
+<g>
+<title>io/netty/buffer/PoolThreadCache$MemoryRegionCache.allocate (1 samples, 3.12%)</title><rect x="231.2" y="867.0" width="36.8" height="15" fill="#52e352" rx="2" ry="2"/>
+<text x="234.2" y="878.0">io/..</text>
+</g>
+<g>
+<title>io/netty/buffer/PoolThreadCache$SubPageMemoryRegionCache.initBuf (1 samples, 3.12%)</title><rect x="231.2" y="851.0" width="36.8" height="15" fill="#58e958" rx="2" ry="2"/>
+<text x="234.2" y="862.0">io/..</text>
+</g>
+<g>
+<title>io/netty/buffer/PoolChunk.initBufWithSubpage (1 samples, 3.12%)</title><rect x="231.2" y="835.0" width="36.8" height="15" fill="#50e150" rx="2" ry="2"/>
+<text x="234.2" y="846.0">io/..</text>
+</g>
+<g>
+<title>io/netty/buffer/PoolChunk.initBufWithSubpage (1 samples, 3.12%)</title><rect x="231.2" y="819.0" width="36.8" height="15" fill="#5ced5c" rx="2" ry="2"/>
+<text x="234.2" y="830.0">io/..</text>
+</g>
+<g>
+<title>io/netty/buffer/PooledUnsafeDirectByteBuf.init (1 samples, 3.12%)</title><rect x="231.2" y="803.0" width="36.8" height="15" fill="#50e150" rx="2" ry="2"/>
+<text x="234.2" y="814.0">io/..</text>
+</g>
+<g>
+<title>io/netty/buffer/PooledUnsafeDirectByteBuf.initMemoryAddress (1 samples, 3.12%)</title><rect x="231.2" y="787.0" width="36.8" height="15" fill="#65f665" rx="2" ry="2"/>
+<text x="234.2" y="798.0">io/..</text>
+</g>
+<g>
+<title>io/netty/channel/nio/NioEventLoop.select (5 samples, 15.62%)</title><rect x="268.1" y="1075.0" width="184.4" height="15" fill="#6cfd6c" rx="2" ry="2"/>
+<text x="271.1" y="1086.0">io/netty/channel/nio/Nio..</text>
+</g>
+<g>
+<title>io/netty/channel/nio/SelectedSelectionKeySetSelector.select (3 samples, 9.38%)</title><rect x="305.0" y="1059.0" width="110.6" height="15" fill="#57e857" rx="2" ry="2"/>
+<text x="308.0" y="1070.0">io/netty/chan..</text>
+</g>
+<g>
+<title>sun/nio/ch/SelectorImpl.select (3 samples, 9.38%)</title><rect x="305.0" y="1043.0" width="110.6" height="15" fill="#55e655" rx="2" ry="2"/>
+<text x="308.0" y="1054.0">sun/nio/ch/Se..</text>
+</g>
+<g>
+<title>sun/nio/ch/SelectorImpl.lockAndDoSelect (3 samples, 9.38%)</title><rect x="305.0" y="1027.0" width="110.6" height="15" fill="#59ea59" rx="2" ry="2"/>
+<text x="308.0" y="1038.0">sun/nio/ch/Se..</text>
+</g>
+<g>
+<title>sun/nio/ch/KQueueSelectorImpl.doSelect (3 samples, 9.38%)</title><rect x="305.0" y="1011.0" width="110.6" height="15" fill="#6afb6a" rx="2" ry="2"/>
+<text x="308.0" y="1022.0">sun/nio/ch/KQ..</text>
+</g>
+<g>
+<title>sun/nio/ch/KQueueArrayWrapper.poll (3 samples, 9.38%)</title><rect x="305.0" y="995.0" width="110.6" height="15" fill="#63f463" rx="2" ry="2"/>
+<text x="308.0" y="1006.0">sun/nio/ch/KQ..</text>
+</g>
+<g>
+<title>sun/nio/ch/KQueueArrayWrapper.kevent0 (3 samples, 9.38%)</title><rect x="305.0" y="979.0" width="110.6" height="15" fill="#54e554" rx="2" ry="2"/>
+<text x="308.0" y="990.0">sun/nio/ch/KQ..</text>
+</g>
+<g>
+<title>JavaThread::check_special_condition_for_native_trans(JavaThread*) (1 samples, 3.12%)</title><rect x="305.0" y="963.0" width="36.9" height="15" fill="#dcdc42" rx="2" ry="2"/>
+<text x="308.0" y="974.0">Jav..</text>
+</g>
+<g>
+<title>JavaThread::check_safepoint_and_suspend_for_native_trans(JavaThread*) (1 samples, 3.12%)</title><rect x="305.0" y="947.0" width="36.9" height="15" fill="#d3d33f" rx="2" ry="2"/>
+<text x="308.0" y="958.0">Jav..</text>
+</g>
+<g>
+<title>SafepointSynchronize::block(JavaThread*) (1 samples, 3.12%)</title><rect x="305.0" y="931.0" width="36.9" height="15" fill="#d3d33f" rx="2" ry="2"/>
+<text x="308.0" y="942.0">Saf..</text>
+</g>
+<g>
+<title>Monitor::lock_without_safepoint_check() (1 samples, 3.12%)</title><rect x="305.0" y="915.0" width="36.9" height="15" fill="#d6d640" rx="2" ry="2"/>
+<text x="308.0" y="926.0">Mon..</text>
+</g>
+<g>
+<title>Monitor::ILock(Thread*) (1 samples, 3.12%)</title><rect x="305.0" y="899.0" width="36.9" height="15" fill="#cccc3d" rx="2" ry="2"/>
+<text x="308.0" y="910.0">Mon..</text>
+</g>
+<g>
+<title>ParkCommon(ParkEvent*, long) (1 samples, 3.12%)</title><rect x="305.0" y="883.0" width="36.9" height="15" fill="#f27171" rx="2" ry="2"/>
+<text x="308.0" y="894.0">Par..</text>
+</g>
+<g>
+<title>os::PlatformEvent::park() (1 samples, 3.12%)</title><rect x="305.0" y="867.0" width="36.9" height="15" fill="#e1e144" rx="2" ry="2"/>
+<text x="308.0" y="878.0">os:..</text>
+</g>
+<g>
+<title>__psynch_cvwait (1 samples, 3.12%)</title><rect x="305.0" y="851.0" width="36.9" height="15" fill="#f27171" rx="2" ry="2"/>
+<text x="308.0" y="862.0">__p..</text>
+</g>
+<g>
+<title>Java_sun_nio_ch_KQueueArrayWrapper_kevent0 (1 samples, 3.12%)</title><rect x="341.9" y="963.0" width="36.9" height="15" fill="#fd8080" rx="2" ry="2"/>
+<text x="344.9" y="974.0">Jav..</text>
+</g>
+<g>
+<title>kevent (1 samples, 3.12%)</title><rect x="378.8" y="963.0" width="36.8" height="15" fill="#f17070" rx="2" ry="2"/>
+<text x="381.8" y="974.0">kev..</text>
+</g>
+<g>
+<title>java/lang/Thread.interrupted (1 samples, 3.12%)</title><rect x="415.6" y="1059.0" width="36.9" height="15" fill="#54e554" rx="2" ry="2"/>
+<text x="418.6" y="1070.0">jav..</text>
+</g>
+<g>
+<title>java/lang/Thread.isInterrupted (1 samples, 3.12%)</title><rect x="415.6" y="1043.0" width="36.9" height="15" fill="#6dfe6d" rx="2" ry="2"/>
+<text x="418.6" y="1054.0">jav..</text>
+</g>
+<g>
+<title>ThreadStateTransition::trans_from_native(JavaThreadState) (1 samples, 3.12%)</title><rect x="415.6" y="1027.0" width="36.9" height="15" fill="#d4d440" rx="2" ry="2"/>
+<text x="418.6" y="1038.0">Thr..</text>
+</g>
+<g>
+<title>io/netty/util/concurrent/SingleThreadEventExecutor.runAllTasks (1 samples, 3.12%)</title><rect x="452.5" y="1075.0" width="36.9" height="15" fill="#54e554" rx="2" ry="2"/>
+<text x="455.5" y="1086.0">io/..</text>
+</g>
+<g>
+<title>io/netty/util/concurrent/SingleThreadEventExecutor.fetchFromScheduledTaskQueue (1 samples, 3.12%)</title><rect x="452.5" y="1059.0" width="36.9" height="15" fill="#60f160" rx="2" ry="2"/>
+<text x="455.5" y="1070.0">io/..</text>
+</g>
+<g>
+<title>io/netty/util/concurrent/AbstractScheduledEventExecutor.pollScheduledTask (1 samples, 3.12%)</title><rect x="452.5" y="1043.0" width="36.9" height="15" fill="#57e857" rx="2" ry="2"/>
+<text x="455.5" y="1054.0">io/..</text>
+</g>
+<g>
+<title>java/util/concurrent/ThreadPoolExecutor$Worker.run (3 samples, 9.38%)</title><rect x="489.4" y="1139.0" width="110.6" height="15" fill="#5eef5e" rx="2" ry="2"/>
+<text x="492.4" y="1150.0">java/util/con..</text>
+</g>
+<g>
+<title>java/util/concurrent/ThreadPoolExecutor.runWorker (3 samples, 9.38%)</title><rect x="489.4" y="1123.0" width="110.6" height="15" fill="#5dee5d" rx="2" ry="2"/>
+<text x="492.4" y="1134.0">java/util/con..</text>
+</g>
+<g>
+<title>com/taobao/arthas/core/shell/system/impl/ProcessImpl$CommandProcessTask.run (1 samples, 3.12%)</title><rect x="489.4" y="1107.0" width="36.9" height="15" fill="#6cfd6c" rx="2" ry="2"/>
+<text x="492.4" y="1118.0">com..</text>
+</g>
+<g>
+<title>com/taobao/arthas/core/shell/command/impl/AnnotatedCommandImpl$ProcessHandler.handle (1 samples, 3.12%)</title><rect x="489.4" y="1091.0" width="36.9" height="15" fill="#53e453" rx="2" ry="2"/>
+<text x="492.4" y="1102.0">com..</text>
+</g>
+<g>
+<title>com/taobao/arthas/core/shell/command/impl/AnnotatedCommandImpl$ProcessHandler.handle (1 samples, 3.12%)</title><rect x="489.4" y="1075.0" width="36.9" height="15" fill="#55e655" rx="2" ry="2"/>
+<text x="492.4" y="1086.0">com..</text>
+</g>
+<g>
+<title>com/taobao/arthas/core/shell/command/impl/AnnotatedCommandImpl.access$100 (1 samples, 3.12%)</title><rect x="489.4" y="1059.0" width="36.9" height="15" fill="#59ea59" rx="2" ry="2"/>
+<text x="492.4" y="1070.0">com..</text>
+</g>
+<g>
+<title>com/taobao/arthas/core/shell/command/impl/AnnotatedCommandImpl.process (1 samples, 3.12%)</title><rect x="489.4" y="1043.0" width="36.9" height="15" fill="#62f362" rx="2" ry="2"/>
+<text x="492.4" y="1054.0">com..</text>
+</g>
+<g>
+<title>com/taobao/arthas/core/command/monitor200/ProfilerCommand.process (1 samples, 3.12%)</title><rect x="489.4" y="1027.0" width="36.9" height="15" fill="#53e453" rx="2" ry="2"/>
+<text x="492.4" y="1038.0">com..</text>
+</g>
+<g>
+<title>com/taobao/arthas/core/shell/system/impl/ProcessImpl$CommandProcessImpl.write (1 samples, 3.12%)</title><rect x="489.4" y="1011.0" width="36.9" height="15" fill="#63f463" rx="2" ry="2"/>
+<text x="492.4" y="1022.0">com..</text>
+</g>
+<g>
+<title>com/taobao/arthas/core/shell/system/impl/ProcessImpl$ProcessOutput.access$1200 (1 samples, 3.12%)</title><rect x="489.4" y="995.0" width="36.9" height="15" fill="#62f362" rx="2" ry="2"/>
+<text x="492.4" y="1006.0">com..</text>
+</g>
+<g>
+<title>com/taobao/arthas/core/shell/system/impl/ProcessImpl$ProcessOutput.write (1 samples, 3.12%)</title><rect x="489.4" y="979.0" width="36.9" height="15" fill="#68f968" rx="2" ry="2"/>
+<text x="492.4" y="990.0">com..</text>
+</g>
+<g>
+<title>com/taobao/arthas/core/shell/command/internal/TermHandler.apply (1 samples, 3.12%)</title><rect x="489.4" y="963.0" width="36.9" height="15" fill="#57e857" rx="2" ry="2"/>
+<text x="492.4" y="974.0">com..</text>
+</g>
+<g>
+<title>com/taobao/arthas/core/shell/command/internal/TermHandler.apply (1 samples, 3.12%)</title><rect x="489.4" y="947.0" width="36.9" height="15" fill="#5eef5e" rx="2" ry="2"/>
+<text x="492.4" y="958.0">com..</text>
+</g>
+<g>
+<title>com/taobao/arthas/core/shell/term/impl/TermImpl.write (1 samples, 3.12%)</title><rect x="489.4" y="931.0" width="36.9" height="15" fill="#5bec5b" rx="2" ry="2"/>
+<text x="492.4" y="942.0">com..</text>
+</g>
+<g>
+<title>io/termd/core/telnet/TelnetTtyConnection.write (1 samples, 3.12%)</title><rect x="489.4" y="915.0" width="36.9" height="15" fill="#56e756" rx="2" ry="2"/>
+<text x="492.4" y="926.0">io/..</text>
+</g>
+<g>
+<title>io/termd/core/tty/TtyOutputMode.accept (1 samples, 3.12%)</title><rect x="489.4" y="899.0" width="36.9" height="15" fill="#50e150" rx="2" ry="2"/>
+<text x="492.4" y="910.0">io/..</text>
+</g>
+<g>
+<title>io/termd/core/tty/TtyOutputMode.accept (1 samples, 3.12%)</title><rect x="489.4" y="883.0" width="36.9" height="15" fill="#6bfc6b" rx="2" ry="2"/>
+<text x="492.4" y="894.0">io/..</text>
+</g>
+<g>
+<title>io/termd/core/io/BinaryEncoder.accept (1 samples, 3.12%)</title><rect x="489.4" y="867.0" width="36.9" height="15" fill="#5ced5c" rx="2" ry="2"/>
+<text x="492.4" y="878.0">io/..</text>
+</g>
+<g>
+<title>io/termd/core/io/BinaryEncoder.accept (1 samples, 3.12%)</title><rect x="489.4" y="851.0" width="36.9" height="15" fill="#54e554" rx="2" ry="2"/>
+<text x="492.4" y="862.0">io/..</text>
+</g>
+<g>
+<title>io/termd/core/telnet/TelnetTtyConnection$2.accept (1 samples, 3.12%)</title><rect x="489.4" y="835.0" width="36.9" height="15" fill="#6cfd6c" rx="2" ry="2"/>
+<text x="492.4" y="846.0">io/..</text>
+</g>
+<g>
+<title>io/termd/core/telnet/TelnetTtyConnection$2.accept (1 samples, 3.12%)</title><rect x="489.4" y="819.0" width="36.9" height="15" fill="#5ced5c" rx="2" ry="2"/>
+<text x="492.4" y="830.0">io/..</text>
+</g>
+<g>
+<title>io/termd/core/telnet/TelnetConnection.write (1 samples, 3.12%)</title><rect x="489.4" y="803.0" width="36.9" height="15" fill="#53e453" rx="2" ry="2"/>
+<text x="492.4" y="814.0">io/..</text>
+</g>
+<g>
+<title>io/termd/core/telnet/netty/NettyTelnetConnection.send (1 samples, 3.12%)</title><rect x="489.4" y="787.0" width="36.9" height="15" fill="#6afb6a" rx="2" ry="2"/>
+<text x="492.4" y="798.0">io/..</text>
+</g>
+<g>
+<title>io/netty/channel/AbstractChannelHandlerContext.writeAndFlush (1 samples, 3.12%)</title><rect x="489.4" y="771.0" width="36.9" height="15" fill="#52e352" rx="2" ry="2"/>
+<text x="492.4" y="782.0">io/..</text>
+</g>
+<g>
+<title>io/netty/channel/AbstractChannelHandlerContext.writeAndFlush (1 samples, 3.12%)</title><rect x="489.4" y="755.0" width="36.9" height="15" fill="#54e554" rx="2" ry="2"/>
+<text x="492.4" y="766.0">io/..</text>
+</g>
+<g>
+<title>io/netty/channel/AbstractChannelHandlerContext.write (1 samples, 3.12%)</title><rect x="489.4" y="739.0" width="36.9" height="15" fill="#52e352" rx="2" ry="2"/>
+<text x="492.4" y="750.0">io/..</text>
+</g>
+<g>
+<title>io/netty/channel/AbstractChannelHandlerContext.safeExecute (1 samples, 3.12%)</title><rect x="489.4" y="723.0" width="36.9" height="15" fill="#5aeb5a" rx="2" ry="2"/>
+<text x="492.4" y="734.0">io/..</text>
+</g>
+<g>
+<title>io/netty/util/concurrent/SingleThreadEventExecutor.execute (1 samples, 3.12%)</title><rect x="489.4" y="707.0" width="36.9" height="15" fill="#57e857" rx="2" ry="2"/>
+<text x="492.4" y="718.0">io/..</text>
+</g>
+<g>
+<title>io/netty/util/concurrent/SingleThreadEventExecutor.addTask (1 samples, 3.12%)</title><rect x="489.4" y="691.0" width="36.9" height="15" fill="#54e554" rx="2" ry="2"/>
+<text x="492.4" y="702.0">io/..</text>
+</g>
+<g>
+<title>com/intellij/rt/debugger/agent/CaptureStorage.capture (1 samples, 3.12%)</title><rect x="489.4" y="675.0" width="36.9" height="15" fill="#67f867" rx="2" ry="2"/>
+<text x="492.4" y="686.0">com..</text>
+</g>
+<g>
+<title>java/lang/Throwable.&lt;init&gt; (1 samples, 3.12%)</title><rect x="489.4" y="659.0" width="36.9" height="15" fill="#5dee5d" rx="2" ry="2"/>
+<text x="492.4" y="670.0">jav..</text>
+</g>
+<g>
+<title>java/lang/Throwable.fillInStackTrace (1 samples, 3.12%)</title><rect x="489.4" y="643.0" width="36.9" height="15" fill="#5aeb5a" rx="2" ry="2"/>
+<text x="492.4" y="654.0">jav..</text>
+</g>
+<g>
+<title>java/lang/Throwable.fillInStackTrace (1 samples, 3.12%)</title><rect x="489.4" y="627.0" width="36.9" height="15" fill="#5dee5d" rx="2" ry="2"/>
+<text x="492.4" y="638.0">jav..</text>
+</g>
+<g>
+<title>Java_java_lang_Throwable_fillInStackTrace (1 samples, 3.12%)</title><rect x="489.4" y="611.0" width="36.9" height="15" fill="#f97a7a" rx="2" ry="2"/>
+<text x="492.4" y="622.0">Jav..</text>
+</g>
+<g>
+<title>JVM_FillInStackTrace (1 samples, 3.12%)</title><rect x="489.4" y="595.0" width="36.9" height="15" fill="#fc7f7f" rx="2" ry="2"/>
+<text x="492.4" y="606.0">JVM..</text>
+</g>
+<g>
+<title>java_lang_Throwable::fill_in_stack_trace(Handle, methodHandle) (1 samples, 3.12%)</title><rect x="489.4" y="579.0" width="36.9" height="15" fill="#dbdb42" rx="2" ry="2"/>
+<text x="492.4" y="590.0">jav..</text>
+</g>
+<g>
+<title>pthread_getspecific (1 samples, 3.12%)</title><rect x="489.4" y="563.0" width="36.9" height="15" fill="#e76262" rx="2" ry="2"/>
+<text x="492.4" y="574.0">pth..</text>
+</g>
+<g>
+<title>java/util/concurrent/FutureTask.run (1 samples, 3.12%)</title><rect x="526.2" y="1107.0" width="36.8" height="15" fill="#64f564" rx="2" ry="2"/>
+<text x="529.2" y="1118.0">jav..</text>
+</g>
+<g>
+<title>java/util/concurrent/FutureTask.run$$$capture (1 samples, 3.12%)</title><rect x="526.2" y="1091.0" width="36.8" height="15" fill="#6bfc6b" rx="2" ry="2"/>
+<text x="529.2" y="1102.0">jav..</text>
+</g>
+<g>
+<title>java/util/concurrent/Executors$RunnableAdapter.call (1 samples, 3.12%)</title><rect x="526.2" y="1075.0" width="36.8" height="15" fill="#57e857" rx="2" ry="2"/>
+<text x="529.2" y="1086.0">jav..</text>
+</g>
+<g>
+<title>java/lang/Thread.run (1 samples, 3.12%)</title><rect x="526.2" y="1059.0" width="36.8" height="15" fill="#69fa69" rx="2" ry="2"/>
+<text x="529.2" y="1070.0">jav..</text>
+</g>
+<g>
+<title>demo/Arthas$$Lambda$1/706277948.run (1 samples, 3.12%)</title><rect x="526.2" y="1043.0" width="36.8" height="15" fill="#5eef5e" rx="2" ry="2"/>
+<text x="529.2" y="1054.0">dem..</text>
+</g>
+<g>
+<title>demo/Arthas.lambda$thread$3 (1 samples, 3.12%)</title><rect x="526.2" y="1027.0" width="36.8" height="15" fill="#5ff05f" rx="2" ry="2"/>
+<text x="529.2" y="1038.0">dem..</text>
+</g>
+<g>
+<title>java/lang/Thread.sleep (1 samples, 3.12%)</title><rect x="526.2" y="1011.0" width="36.8" height="15" fill="#62f362" rx="2" ry="2"/>
+<text x="529.2" y="1022.0">jav..</text>
+</g>
+<g>
+<title>JVM_Sleep (1 samples, 3.12%)</title><rect x="526.2" y="995.0" width="36.8" height="15" fill="#f97a7a" rx="2" ry="2"/>
+<text x="529.2" y="1006.0">JVM..</text>
+</g>
+<g>
+<title>os::sleep(Thread*, long, bool) (1 samples, 3.12%)</title><rect x="526.2" y="979.0" width="36.8" height="15" fill="#dede43" rx="2" ry="2"/>
+<text x="529.2" y="990.0">os:..</text>
+</g>
+<g>
+<title>os::PlatformEvent::park(long) (1 samples, 3.12%)</title><rect x="526.2" y="963.0" width="36.8" height="15" fill="#d5d540" rx="2" ry="2"/>
+<text x="529.2" y="974.0">os:..</text>
+</g>
+<g>
+<title>__psynch_cvwait (1 samples, 3.12%)</title><rect x="526.2" y="947.0" width="36.8" height="15" fill="#fd8080" rx="2" ry="2"/>
+<text x="529.2" y="958.0">__p..</text>
+</g>
+<g>
+<title>java/util/concurrent/ThreadPoolExecutor.getTask (1 samples, 3.12%)</title><rect x="563.1" y="1107.0" width="36.9" height="15" fill="#62f362" rx="2" ry="2"/>
+<text x="566.1" y="1118.0">jav..</text>
+</g>
+<g>
+<title>java/util/concurrent/ScheduledThreadPoolExecutor$DelayedWorkQueue.take (1 samples, 3.12%)</title><rect x="563.1" y="1091.0" width="36.9" height="15" fill="#5dee5d" rx="2" ry="2"/>
+<text x="566.1" y="1102.0">jav..</text>
+</g>
+<g>
+<title>java/util/concurrent/ScheduledThreadPoolExecutor$DelayedWorkQueue.take (1 samples, 3.12%)</title><rect x="563.1" y="1075.0" width="36.9" height="15" fill="#68f968" rx="2" ry="2"/>
+<text x="566.1" y="1086.0">jav..</text>
+</g>
+<g>
+<title>java/util/concurrent/locks/AbstractQueuedSynchronizer$ConditionObject.awaitNanos (1 samples, 3.12%)</title><rect x="563.1" y="1059.0" width="36.9" height="15" fill="#64f564" rx="2" ry="2"/>
+<text x="566.1" y="1070.0">jav..</text>
+</g>
+<g>
+<title>java/util/concurrent/locks/LockSupport.parkNanos (1 samples, 3.12%)</title><rect x="563.1" y="1043.0" width="36.9" height="15" fill="#65f665" rx="2" ry="2"/>
+<text x="566.1" y="1054.0">jav..</text>
+</g>
+<g>
+<title>sun/misc/Unsafe.park (1 samples, 3.12%)</title><rect x="563.1" y="1027.0" width="36.9" height="15" fill="#6dfe6d" rx="2" ry="2"/>
+<text x="566.1" y="1038.0">sun..</text>
+</g>
+<g>
+<title>Unsafe_Park (1 samples, 3.12%)</title><rect x="563.1" y="1011.0" width="36.9" height="15" fill="#fd8080" rx="2" ry="2"/>
+<text x="566.1" y="1022.0">Uns..</text>
+</g>
+<g>
+<title>Parker::park(bool, long) (1 samples, 3.12%)</title><rect x="563.1" y="995.0" width="36.9" height="15" fill="#e1e144" rx="2" ry="2"/>
+<text x="566.1" y="1006.0">Par..</text>
+</g>
+<g>
+<title>__psynch_cvwait (1 samples, 3.12%)</title><rect x="563.1" y="979.0" width="36.9" height="15" fill="#e96565" rx="2" ry="2"/>
+<text x="566.1" y="990.0">__p..</text>
+</g>
+<g>
+<title>thread_start (16 samples, 50.00%)</title><rect x="600.0" y="1155.0" width="590.0" height="15" fill="#f16f6f" rx="2" ry="2"/>
+<text x="603.0" y="1166.0">thread_start</text>
+</g>
+<g>
+<title>_pthread_start (16 samples, 50.00%)</title><rect x="600.0" y="1139.0" width="590.0" height="15" fill="#f06e6e" rx="2" ry="2"/>
+<text x="603.0" y="1150.0">_pthread_start</text>
+</g>
+<g>
+<title>java_start(Thread*) (16 samples, 50.00%)</title><rect x="600.0" y="1123.0" width="590.0" height="15" fill="#e45e5e" rx="2" ry="2"/>
+<text x="603.0" y="1134.0">java_start(Thread*)</text>
+</g>
+<g>
+<title>JavaThread::run() (8 samples, 25.00%)</title><rect x="600.0" y="1107.0" width="295.0" height="15" fill="#d4d440" rx="2" ry="2"/>
+<text x="603.0" y="1118.0">JavaThread::run()</text>
+</g>
+<g>
+<title>JavaThread::thread_main_inner() (8 samples, 25.00%)</title><rect x="600.0" y="1091.0" width="295.0" height="15" fill="#d9d941" rx="2" ry="2"/>
+<text x="603.0" y="1102.0">JavaThread::thread_main_inner()</text>
+</g>
+<g>
+<title>CompileBroker::compiler_thread_loop() (8 samples, 25.00%)</title><rect x="600.0" y="1075.0" width="295.0" height="15" fill="#e2e244" rx="2" ry="2"/>
+<text x="603.0" y="1086.0">CompileBroker::compiler_thread_loop()</text>
+</g>
+<g>
+<title>CompileBroker::invoke_compiler_on_method(CompileTask*) (5 samples, 15.62%)</title><rect x="600.0" y="1059.0" width="184.4" height="15" fill="#d5d540" rx="2" ry="2"/>
+<text x="603.0" y="1070.0">CompileBroker::invoke_co..</text>
+</g>
+<g>
+<title>Compiler::compile_method(ciEnv*, ciMethod*, int) (5 samples, 15.62%)</title><rect x="600.0" y="1043.0" width="184.4" height="15" fill="#dddd43" rx="2" ry="2"/>
+<text x="603.0" y="1054.0">Compiler::compile_method..</text>
+</g>
+<g>
+<title>Compilation::Compilation(AbstractCompiler*, ciEnv*, ciMethod*, int, BufferBlob*) (5 samples, 15.62%)</title><rect x="600.0" y="1027.0" width="184.4" height="15" fill="#e2e244" rx="2" ry="2"/>
+<text x="603.0" y="1038.0">Compilation::Compilation..</text>
+</g>
+<g>
+<title>Compilation::compile_method() (5 samples, 15.62%)</title><rect x="600.0" y="1011.0" width="184.4" height="15" fill="#dddd43" rx="2" ry="2"/>
+<text x="603.0" y="1022.0">Compilation::compile_met..</text>
+</g>
+<g>
+<title>Compilation::compile_java_method() (4 samples, 12.50%)</title><rect x="600.0" y="995.0" width="147.5" height="15" fill="#e0e044" rx="2" ry="2"/>
+<text x="603.0" y="1006.0">Compilation::compil..</text>
+</g>
+<g>
+<title>Compilation::emit_lir() (4 samples, 12.50%)</title><rect x="600.0" y="979.0" width="147.5" height="15" fill="#dddd43" rx="2" ry="2"/>
+<text x="603.0" y="990.0">Compilation::emit_l..</text>
+</g>
+<g>
+<title>BlockList::iterate_forward(BlockClosure*) (1 samples, 3.12%)</title><rect x="600.0" y="963.0" width="36.9" height="15" fill="#dede43" rx="2" ry="2"/>
+<text x="603.0" y="974.0">Blo..</text>
+</g>
+<g>
+<title>LIRGenerator::block_do(BlockBegin*) (1 samples, 3.12%)</title><rect x="600.0" y="947.0" width="36.9" height="15" fill="#c8c83c" rx="2" ry="2"/>
+<text x="603.0" y="958.0">LIR..</text>
+</g>
+<g>
+<title>LIRGenerator::do_root(Instruction*) (1 samples, 3.12%)</title><rect x="600.0" y="931.0" width="36.9" height="15" fill="#e2e244" rx="2" ry="2"/>
+<text x="603.0" y="942.0">LIR..</text>
+</g>
+<g>
+<title>LIRGenerator::do_If(If*) (1 samples, 3.12%)</title><rect x="600.0" y="915.0" width="36.9" height="15" fill="#d7d741" rx="2" ry="2"/>
+<text x="603.0" y="926.0">LIR..</text>
+</g>
+<g>
+<title>LIR_OpList::push(LIR_Op*) (1 samples, 3.12%)</title><rect x="600.0" y="899.0" width="36.9" height="15" fill="#d5d540" rx="2" ry="2"/>
+<text x="603.0" y="910.0">LIR..</text>
+</g>
+<g>
+<title>ResourceArray::expand(unsigned long, int, int&amp;) (1 samples, 3.12%)</title><rect x="600.0" y="883.0" width="36.9" height="15" fill="#c9c93c" rx="2" ry="2"/>
+<text x="603.0" y="894.0">Res..</text>
+</g>
+<g>
+<title>Arena::grow(unsigned long, AllocFailStrategy::AllocFailEnum) (1 samples, 3.12%)</title><rect x="600.0" y="867.0" width="36.9" height="15" fill="#dddd43" rx="2" ry="2"/>
+<text x="603.0" y="878.0">Are..</text>
+</g>
+<g>
+<title>Chunk::operator new(unsigned long, AllocFailStrategy::AllocFailEnum, unsigned long) (1 samples, 3.12%)</title><rect x="600.0" y="851.0" width="36.9" height="15" fill="#d6d640" rx="2" ry="2"/>
+<text x="603.0" y="862.0">Chu..</text>
+</g>
+<g>
+<title>ChunkPool::allocate(unsigned long, AllocFailStrategy::AllocFailEnum) (1 samples, 3.12%)</title><rect x="600.0" y="835.0" width="36.9" height="15" fill="#dcdc42" rx="2" ry="2"/>
+<text x="603.0" y="846.0">Chu..</text>
+</g>
+<g>
+<title>LinearScan::do_linear_scan() (3 samples, 9.38%)</title><rect x="636.9" y="963.0" width="110.6" height="15" fill="#dcdc42" rx="2" ry="2"/>
+<text x="639.9" y="974.0">LinearScan::d..</text>
+</g>
+<g>
+<title>EdgeMoveOptimizer::optimize(BlockList*) (1 samples, 3.12%)</title><rect x="636.9" y="947.0" width="36.9" height="15" fill="#cdcd3d" rx="2" ry="2"/>
+<text x="639.9" y="958.0">Edg..</text>
+</g>
+<g>
+<title>EdgeMoveOptimizer::optimize_moves_at_block_begin(BlockBegin*) (1 samples, 3.12%)</title><rect x="636.9" y="931.0" width="36.9" height="15" fill="#e3e345" rx="2" ry="2"/>
+<text x="639.9" y="942.0">Edg..</text>
+</g>
+<g>
+<title>EdgeMoveOptimizer::remove_cur_instruction(int, bool) (1 samples, 3.12%)</title><rect x="636.9" y="915.0" width="36.9" height="15" fill="#e1e144" rx="2" ry="2"/>
+<text x="639.9" y="926.0">Edg..</text>
+</g>
+<g>
+<title>ResourceArray::remove_at(unsigned long, int) (1 samples, 3.12%)</title><rect x="636.9" y="899.0" width="36.9" height="15" fill="#e2e244" rx="2" ry="2"/>
+<text x="639.9" y="910.0">Res..</text>
+</g>
+<g>
+<title>_platform_memmove$VARIANT$Haswell (1 samples, 3.12%)</title><rect x="636.9" y="883.0" width="36.9" height="15" fill="#f16f6f" rx="2" ry="2"/>
+<text x="639.9" y="894.0">_pl..</text>
+</g>
+<g>
+<title>LinearScan::assign_reg_num() (2 samples, 6.25%)</title><rect x="673.8" y="947.0" width="73.7" height="15" fill="#cccc3d" rx="2" ry="2"/>
+<text x="676.8" y="958.0">LinearSc..</text>
+</g>
+<g>
+<title>LinearScan::assign_reg_num(LIR_OpList*, IntervalWalker*) (2 samples, 6.25%)</title><rect x="673.8" y="931.0" width="73.7" height="15" fill="#d5d540" rx="2" ry="2"/>
+<text x="676.8" y="942.0">LinearSc..</text>
+</g>
+<g>
+<title>LIR_OpVisitState::visit(LIR_Op*) (1 samples, 3.12%)</title><rect x="673.8" y="915.0" width="36.8" height="15" fill="#e5e545" rx="2" ry="2"/>
+<text x="676.8" y="926.0">LIR..</text>
+</g>
+<g>
+<title>LinearScan::compute_debug_info(CodeEmitInfo*, int) (1 samples, 3.12%)</title><rect x="710.6" y="915.0" width="36.9" height="15" fill="#cece3e" rx="2" ry="2"/>
+<text x="713.6" y="926.0">Lin..</text>
+</g>
+<g>
+<title>LinearScan::compute_debug_info_for_scope(int, IRScope*, ValueStack*, ValueStack*) (1 samples, 3.12%)</title><rect x="710.6" y="899.0" width="36.9" height="15" fill="#d5d540" rx="2" ry="2"/>
+<text x="713.6" y="910.0">Lin..</text>
+</g>
+<g>
+<title>LinearScan::compute_debug_info_for_scope(int, IRScope*, ValueStack*, ValueStack*) (1 samples, 3.12%)</title><rect x="710.6" y="883.0" width="36.9" height="15" fill="#d1d13f" rx="2" ry="2"/>
+<text x="713.6" y="894.0">Lin..</text>
+</g>
+<g>
+<title>LinearScan::color_lir_opr(LIR_OprDesc*, int, LIR_OpVisitState::OprMode) (1 samples, 3.12%)</title><rect x="710.6" y="867.0" width="36.9" height="15" fill="#d7d741" rx="2" ry="2"/>
+<text x="713.6" y="878.0">Lin..</text>
+</g>
+<g>
+<title>Compilation::install_code(int) (1 samples, 3.12%)</title><rect x="747.5" y="995.0" width="36.9" height="15" fill="#e2e244" rx="2" ry="2"/>
+<text x="750.5" y="1006.0">Com..</text>
+</g>
+<g>
+<title>ciEnv::register_method(ciMethod*, int, CodeOffsets*, int, CodeBuffer*, int, OopMapSet*, ExceptionHandlerTable*, ImplicitExceptionTable*, AbstractCompiler*, int, bool, bool, RTMState) (1 samples, 3.12%)</title><rect x="747.5" y="979.0" width="36.9" height="15" fill="#d5d540" rx="2" ry="2"/>
+<text x="750.5" y="990.0">ciE..</text>
+</g>
+<g>
+<title>nmethod::post_compiled_method_load_event() (1 samples, 3.12%)</title><rect x="747.5" y="963.0" width="36.9" height="15" fill="#d6d640" rx="2" ry="2"/>
+<text x="750.5" y="974.0">nme..</text>
+</g>
+<g>
+<title>os::PlatformEvent::unpark() (1 samples, 3.12%)</title><rect x="747.5" y="947.0" width="36.9" height="15" fill="#e0e044" rx="2" ry="2"/>
+<text x="750.5" y="958.0">os:..</text>
+</g>
+<g>
+<title>__psynch_cvsignal (1 samples, 3.12%)</title><rect x="747.5" y="931.0" width="36.9" height="15" fill="#eb6868" rx="2" ry="2"/>
+<text x="750.5" y="942.0">__p..</text>
+</g>
+<g>
+<title>CompileQueue::get() (3 samples, 9.38%)</title><rect x="784.4" y="1059.0" width="110.6" height="15" fill="#cece3e" rx="2" ry="2"/>
+<text x="787.4" y="1070.0">CompileQueue:..</text>
+</g>
+<g>
+<title>Monitor::wait(bool, long, bool) (3 samples, 9.38%)</title><rect x="784.4" y="1043.0" width="110.6" height="15" fill="#e5e545" rx="2" ry="2"/>
+<text x="787.4" y="1054.0">Monitor::wait..</text>
+</g>
+<g>
+<title>Monitor::IUnlock(bool) (1 samples, 3.12%)</title><rect x="784.4" y="1027.0" width="36.9" height="15" fill="#cccc3d" rx="2" ry="2"/>
+<text x="787.4" y="1038.0">Mon..</text>
+</g>
+<g>
+<title>Monitor::IWait(Thread*, long) (2 samples, 6.25%)</title><rect x="821.2" y="1027.0" width="73.7" height="15" fill="#dada42" rx="2" ry="2"/>
+<text x="824.2" y="1038.0">Monitor:..</text>
+</g>
+<g>
+<title>os::PlatformEvent::park(long) (2 samples, 6.25%)</title><rect x="821.2" y="1011.0" width="73.7" height="15" fill="#dada42" rx="2" ry="2"/>
+<text x="824.2" y="1022.0">os::Plat..</text>
+</g>
+<g>
+<title>__psynch_cvwait (1 samples, 3.12%)</title><rect x="821.2" y="995.0" width="36.8" height="15" fill="#e15a5a" rx="2" ry="2"/>
+<text x="824.2" y="1006.0">__p..</text>
+</g>
+<g>
+<title>_pthread_cond_wait (1 samples, 3.12%)</title><rect x="858.1" y="995.0" width="36.9" height="15" fill="#e15a5a" rx="2" ry="2"/>
+<text x="861.1" y="1006.0">_pt..</text>
+</g>
+<g>
+<title>VMThread::run() (4 samples, 12.50%)</title><rect x="895.0" y="1107.0" width="147.5" height="15" fill="#dfdf43" rx="2" ry="2"/>
+<text x="898.0" y="1118.0">VMThread::run()</text>
+</g>
+<g>
+<title>VMThread::loop() (4 samples, 12.50%)</title><rect x="895.0" y="1091.0" width="147.5" height="15" fill="#dddd43" rx="2" ry="2"/>
+<text x="898.0" y="1102.0">VMThread::loop()</text>
+</g>
+<g>
+<title>Monitor::wait(bool, long, bool) (1 samples, 3.12%)</title><rect x="895.0" y="1075.0" width="36.9" height="15" fill="#d1d13f" rx="2" ry="2"/>
+<text x="898.0" y="1086.0">Mon..</text>
+</g>
+<g>
+<title>Monitor::IWait(Thread*, long) (1 samples, 3.12%)</title><rect x="895.0" y="1059.0" width="36.9" height="15" fill="#d4d440" rx="2" ry="2"/>
+<text x="898.0" y="1070.0">Mon..</text>
+</g>
+<g>
+<title>os::PlatformEvent::park(long) (1 samples, 3.12%)</title><rect x="895.0" y="1043.0" width="36.9" height="15" fill="#dcdc42" rx="2" ry="2"/>
+<text x="898.0" y="1054.0">os:..</text>
+</g>
+<g>
+<title>__psynch_cvwait (1 samples, 3.12%)</title><rect x="895.0" y="1027.0" width="36.9" height="15" fill="#f57575" rx="2" ry="2"/>
+<text x="898.0" y="1038.0">__p..</text>
+</g>
+<g>
+<title>SafepointSynchronize::end() (3 samples, 9.38%)</title><rect x="931.9" y="1075.0" width="110.6" height="15" fill="#cece3e" rx="2" ry="2"/>
+<text x="934.9" y="1086.0">SafepointSync..</text>
+</g>
+<g>
+<title>RuntimeService::record_safepoint_end() (2 samples, 6.25%)</title><rect x="968.8" y="1059.0" width="73.7" height="15" fill="#e1e144" rx="2" ry="2"/>
+<text x="971.8" y="1070.0">RuntimeS..</text>
+</g>
+<g>
+<title>defaultStream::write(char const*, unsigned long) (1 samples, 3.12%)</title><rect x="968.8" y="1043.0" width="36.8" height="15" fill="#dddd43" rx="2" ry="2"/>
+<text x="971.8" y="1054.0">def..</text>
+</g>
+<g>
+<title>outputStream::print_cr(char const*, ...) (1 samples, 3.12%)</title><rect x="1005.6" y="1043.0" width="36.9" height="15" fill="#e0e044" rx="2" ry="2"/>
+<text x="1008.6" y="1054.0">out..</text>
+</g>
+<g>
+<title>outputStream::do_vsnprintf(char*, unsigned long, char const*, __va_list_tag*, bool, unsigned long&amp;) (1 samples, 3.12%)</title><rect x="1005.6" y="1027.0" width="36.9" height="15" fill="#caca3c" rx="2" ry="2"/>
+<text x="1008.6" y="1038.0">out..</text>
+</g>
+<g>
+<title>os::vsnprintf(char*, unsigned long, char const*, __va_list_tag*) (1 samples, 3.12%)</title><rect x="1005.6" y="1011.0" width="36.9" height="15" fill="#caca3c" rx="2" ry="2"/>
+<text x="1008.6" y="1022.0">os:..</text>
+</g>
+<g>
+<title>vsnprintf (1 samples, 3.12%)</title><rect x="1005.6" y="995.0" width="36.9" height="15" fill="#f77878" rx="2" ry="2"/>
+<text x="1008.6" y="1006.0">vsn..</text>
+</g>
+<g>
+<title>_vsnprintf (1 samples, 3.12%)</title><rect x="1005.6" y="979.0" width="36.9" height="15" fill="#f37373" rx="2" ry="2"/>
+<text x="1008.6" y="990.0">_vs..</text>
+</g>
+<g>
+<title>__v2printf (1 samples, 3.12%)</title><rect x="1005.6" y="963.0" width="36.9" height="15" fill="#e76262" rx="2" ry="2"/>
+<text x="1008.6" y="974.0">__v..</text>
+</g>
+<g>
+<title>__vfprintf (1 samples, 3.12%)</title><rect x="1005.6" y="947.0" width="36.9" height="15" fill="#e76262" rx="2" ry="2"/>
+<text x="1008.6" y="958.0">__v..</text>
+</g>
+<g>
+<title>WatcherThread::run() (4 samples, 12.50%)</title><rect x="1042.5" y="1107.0" width="147.5" height="15" fill="#caca3c" rx="2" ry="2"/>
+<text x="1045.5" y="1118.0">WatcherThread::run()</text>
+</g>
+<g>
+<title>WatcherThread::sleep() const (4 samples, 12.50%)</title><rect x="1042.5" y="1091.0" width="147.5" height="15" fill="#d3d33f" rx="2" ry="2"/>
+<text x="1045.5" y="1102.0">WatcherThread::slee..</text>
+</g>
+<g>
+<title>Monitor::wait(bool, long, bool) (4 samples, 12.50%)</title><rect x="1042.5" y="1075.0" width="147.5" height="15" fill="#e4e445" rx="2" ry="2"/>
+<text x="1045.5" y="1086.0">Monitor::wait(bool,..</text>
+</g>
+<g>
+<title>Monitor::IWait(Thread*, long) (4 samples, 12.50%)</title><rect x="1042.5" y="1059.0" width="147.5" height="15" fill="#e4e445" rx="2" ry="2"/>
+<text x="1045.5" y="1070.0">Monitor::IWait(Thre..</text>
+</g>
+<g>
+<title>os::PlatformEvent::park(long) (4 samples, 12.50%)</title><rect x="1042.5" y="1043.0" width="147.5" height="15" fill="#d3d33f" rx="2" ry="2"/>
+<text x="1045.5" y="1054.0">os::PlatformEvent::..</text>
+</g>
+<g>
+<title>__psynch_cvwait (4 samples, 12.50%)</title><rect x="1042.5" y="1027.0" width="147.5" height="15" fill="#e96464" rx="2" ry="2"/>
+<text x="1045.5" y="1038.0">__psynch_cvwait</text>
+</g>
+</g>
+</svg>
